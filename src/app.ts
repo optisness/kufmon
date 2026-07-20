@@ -10,13 +10,13 @@ import { startCron } from "./cron.js";
 
 import { sendTelegram } from "./telegram.js";
 
+const app = Fastify({
+  logger: true,
+});
+
 app.get("/test-tg", async () => {
   await sendTelegram("TEST FROM RENDER");
   return { ok: true };
-});
-
-const app = Fastify({
-  logger: true,
 });
 
 app.get("/", async () => {
