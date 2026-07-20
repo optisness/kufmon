@@ -1,22 +1,12 @@
 import Fastify from "fastify";
-
 import fastifyFormbody from "@fastify/formbody";
-
 import { prisma } from "./db.js";
-
 import { fetchKufarMap, saveKufarAds } from "./kufar.js";
-
 import { startCron } from "./cron.js";
-
 import { sendTelegram } from "./telegram.js";
 
 const app = Fastify({
   logger: true,
-});
-
-app.get("/test-tg", async () => {
-  await sendTelegram("TEST FROM RENDER");
-  return { ok: true };
 });
 
 app.get("/", async () => {
@@ -219,6 +209,11 @@ app.get("/history/:id", async (req: any, reply) => {
   `;
 
   reply.type("text/html; charset=utf-8").send(html);
+});
+
+app.get("/test-tg", async () => {
+  await sendTelegram("TEST FROM RENDER");
+  return { ok: true };
 });
 
 // 3. запуск сервера (САМЫЙ НИЗ)
