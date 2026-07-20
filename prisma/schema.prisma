@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Listing {
+  id          String   @id
+  title       String
+  price       Int
+  currency    String
+  url         String   @unique
+  location    String?
+  rooms       Int?
+  source      String   @default("kufar")
+  isActive    Boolean  @default(true)
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now()) @updatedAt
+  createdAt   DateTime @default(now())
+
+  priceHistory PriceHistory[]
+}
+
+model User {
+  id        String  @id @default(cuid())
+  name      String?
+  telegramChatId String
+
+  maxPrice  Int?
+  rooms     Int[]
+
+  createdAt DateTime @default(now())
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  listingId String
+  price     Int
+  createdAt DateTime @default(now())
+
+  listing   Listing  @relation(fields: [listingId], references: [id])
+}

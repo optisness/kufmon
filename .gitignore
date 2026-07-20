@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+
+*.exe
+*.msi
+*.zip
+
+*.log

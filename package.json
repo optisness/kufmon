@@ -1,0 +1,23 @@
+{
+  "name": "kufmon",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js"
+  },
+  "dependencies": {
+    "@fastify/formbody": "^7.0.0",
+    "@prisma/client": "^6.19.3",
+    "fastify": "^4.29.1",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/node-cron": "^3.0.11",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.1",
+    "typescript": "^5.6.2"
+  }
+}
