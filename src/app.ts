@@ -1,8 +1,13 @@
 import Fastify from "fastify";
+
 import fastifyFormbody from "@fastify/formbody";
+
 import { prisma } from "./db.js";
+
 import { fetchKufarMap, saveKufarAds } from "./kufar.js";
+
 import { startCron } from "./cron.js";
+
 import { sendTelegram } from "./telegram.js";
 
 app.get("/test-tg", async () => {
