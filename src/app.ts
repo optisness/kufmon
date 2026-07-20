@@ -212,8 +212,16 @@ app.get("/history/:id", async (req: any, reply) => {
 });
 
 app.get("/test-tg", async () => {
-  await sendTelegram("TEST FROM RENDER");
-  return { ok: true };
+  const users = await prisma.user.findMany();
+
+  for (const user of users) {
+    await sendTelegram(
+      `TEST FROM RENDER`,
+      user.telegramChatId
+    );
+  }
+
+  return { ok: true, users: users.length };
 });
 
 // 3. запуск сервера (САМЫЙ НИЗ)
