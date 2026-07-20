@@ -20,6 +20,21 @@ export async function saveKufarAds() {
 
   const users = await prisma.user.findMany();
 
+for (const user of users) {
+  if (user.maxPrice && listing.price > user.maxPrice) continue;
+
+  if (user.rooms.length && !user.rooms.includes(rooms)) continue;
+
+  await sendTelegram(
+    `🔥 Новое объявление
+
+💰 Цена: ${listing.price}
+🛏 Комнаты: ${rooms ?? "-"}
+🔗 ${listing.url}`,
+    user.telegramChatId
+  );
+}
+
   const currentIds = new Set<string>(ads.map((ad: any) => String(ad.i)));
 
   const userAlerts: Record<string, string[]> = {};
