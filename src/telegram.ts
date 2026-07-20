@@ -3,6 +3,7 @@ export async function sendTelegram(
   chatId: string
 ) {
   const token = process.env.TELEGRAM_TOKEN;
+  console.log("TG TOKEN:", process.env.TELEGRAM_TOKEN);
 
   if (!token) {
     console.log("Telegram not configured");
