@@ -1,8 +1,10 @@
 import { existsSync } from 'fs';
-import { join, resolve } from 'path';
+import { dirname, join, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
 const cwd = process.cwd();
-const candidates = [cwd, resolve(cwd, '..'), resolve(cwd, '../..'), resolve(cwd, '../../..')];
+const startDir = dirname(fileURLToPath(import.meta.url));
+const candidates = [startDir, cwd, resolve(startDir, '..'), resolve(cwd, '..'), resolve(startDir, '../..'), resolve(cwd, '../..')];
 let root = null;
 
 for (const dir of candidates) {
