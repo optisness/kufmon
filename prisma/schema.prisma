@@ -8,15 +8,15 @@ datasource db {
 }
 
 model Listing {
-  id          String   @id
-  title       String
-  price       Int
-  currency    String
-  url         String   @unique
-  location    String?
-  rooms       Int?
-  source      String   @default("kufar")
-  isActive    Boolean  @default(true)
+  id       String  @id
+  title    String
+  price    Int
+  currency String
+  url      String  @unique
+  location String?
+  rooms    Int?
+  source   String  @default("kufar")
+  isActive Boolean @default(true)
 
   firstSeenAt DateTime @default(now())
   lastSeenAt  DateTime @default(now()) @updatedAt
@@ -26,12 +26,14 @@ model Listing {
 }
 
 model User {
-  id        String  @id @default(cuid())
-  name      String?
+  id             String  @id @default(cuid())
+  name           String?
   telegramChatId String
 
-  maxPrice  Int?
-  rooms     Int[]
+  maxPrice Int?
+  rooms    Int[]
+
+  subscriptions Subscription[]
 
   createdAt DateTime @default(now())
 }
@@ -42,5 +44,17 @@ model PriceHistory {
   price     Int
   createdAt DateTime @default(now())
 
-  listing   Listing  @relation(fields: [listingId], references: [id])
+  listing Listing @relation(fields: [listingId], references: [id])
+}
+
+model Subscription {
+  id              String   @id @default(cuid())
+  name            String
+  userId          String?
+  filters         Json?
+  intervalMinutes Int      @default(30)
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
 }

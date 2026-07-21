@@ -1,11 +1,24 @@
 import { prisma } from "./db.js";
 import { sendTelegram } from "./telegram.js";
 
+async function fetchWithRetry(url: string, options: any = {}, retries = 3, backoff = 500) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, options as any);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res;
+    } catch (err) {
+      if (attempt === retries) throw err;
+      await new Promise((r) => setTimeout(r, backoff * (attempt + 1)));
+    }
+  }
+}
+
 export async function fetchKufarMap() {
   const url =
     "https://api.kufar.by/search-api/v2/search/map/over?cat=1010&gbx=b%3A23.7700119033966%2C53.65650117650396%2C23.781320096603395%2C53.66093670625306&prn=1000&size=900&sort=lst.d&typ=sell";
 
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     headers: {
       accept: "*/*",
     },
@@ -19,21 +32,6 @@ export async function saveKufarAds() {
   const ads = data.ads ?? [];
 
   const users = await prisma.user.findMany();
-
-for (const user of users) {
-  if (user.maxPrice && listing.price > user.maxPrice) continue;
-
-  if (user.rooms.length && !user.rooms.includes(rooms)) continue;
-
-  await sendTelegram(
-    `🔥 Новое объявление
-
-💰 Цена: ${listing.price}
-🛏 Комнаты: ${rooms ?? "-"}
-🔗 ${listing.url}`,
-    user.telegramChatId
-  );
-}
 
   const currentIds = new Set<string>(ads.map((ad: any) => String(ad.i)));
 
@@ -56,7 +54,7 @@ for (const user of users) {
 
     const isNew = !existing;
 
-    // 👉 история цен для новых
+    // history for new
     if (isNew) {
       await prisma.priceHistory.create({
         data: {
@@ -66,48 +64,39 @@ for (const user of users) {
       });
     }
 
-    // 👉 изменение цены
+    // price changed
     if (existing && existing.price !== price) {
-  console.log(`PRICE CHANGED: ${id} ${existing.price} -> ${price}`);
+      console.log(`PRICE CHANGED: ${id} ${existing.price} -> ${price}`);
 
-  // сохраняем историю
-  await prisma.priceHistory.create({
-    data: {
-      listingId: id,
-      price,
-    },
-  });
+      await prisma.priceHistory.create({
+        data: {
+          listingId: id,
+          price,
+        },
+      });
 
-  // 👉 АЛЕРТ: цена упала
-  if (price < existing.price) {
-    for (const user of users) {
-      const matchesPrice =
-        !user.maxPrice || (price > 0 && price <= user.maxPrice);
+      // price drop alerts
+      if (price < existing.price) {
+        for (const user of users) {
+          const matchesPrice = !user.maxPrice || (price > 0 && price <= user.maxPrice);
+          const matchesRooms = !user.rooms || (rooms && user.rooms.includes(rooms));
 
-      const matchesRooms =
-        !user.rooms || (rooms && user.rooms.includes(rooms));
-
-      if (matchesPrice && matchesRooms) {
-        userAlerts[user.id].push(
-          `📉 Цена упала!\n${existing.price} → ${price}\nhttps://re.kufar.by/vi/${id}`
-        );
+          if (matchesPrice && matchesRooms) {
+            userAlerts[user.id].push(
+              `📉 Цена упала!\n${existing.price} → ${price}\nhttps://re.kufar.by/vi/${id}`
+            );
+          }
+        }
       }
     }
-  }
-}
 
-    // 👉 фильтры пользователей
+    // new ad alerts
     for (const user of users) {
-      const matchesPrice =
-        !user.maxPrice || (price > 0 && price <= user.maxPrice);
-
-      const matchesRooms =
-        !user.rooms || (rooms && user.rooms.includes(rooms));
+      const matchesPrice = !user.maxPrice || (price > 0 && price <= user.maxPrice);
+      const matchesRooms = !user.rooms || (rooms && user.rooms.includes(rooms));
 
       if (isNew && matchesPrice && matchesRooms) {
-        userAlerts[user.id].push(
-          `🔥 ${price} | ${rooms ?? "?"}к\nhttps://re.kufar.by/vi/${id}`
-        );
+        userAlerts[user.id].push(`🔥 ${price} | ${rooms ?? "?"}к\nhttps://re.kufar.by/vi/${id}`);
       }
     }
 
@@ -131,7 +120,7 @@ for (const user of users) {
     });
   }
 
-  // деактивация
+  // deactivate missing
   await prisma.listing.updateMany({
     where: {
       id: {
@@ -144,11 +133,11 @@ for (const user of users) {
     },
   });
 
-  // 👉 отправка Telegram
+  // send Telegram alerts
   for (const user of users) {
     const alerts = userAlerts[user.id];
 
-    if (alerts.length === 0) continue;
+    if (!alerts || alerts.length === 0) continue;
 
     const text = alerts.join("\n\n");
     const chunks = text.match(/[\s\S]{1,3500}/g) || [];

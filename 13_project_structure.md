@@ -19,23 +19,35 @@ The primary goals are:
 # Repository Layout
 
 ```
-kufmon/
-│
-├── docs/                  # Project documentation
-├── src/                   # Application source code
-├── prisma/                # Prisma schema and migrations
-├── tests/                 # Automated tests
-├── docker/                # Docker-related files
-├── scripts/               # Development and deployment scripts
-├── .github/
-│   └── workflows/         # GitHub Actions
-│
+project-root/
+├── 01_architecture.md
+├── 02_database.md
+├── 03_sync_algorithm.md
+├── 04_kufar_json_reference.md
+├── 05_kufar_mapping.md
+├── 06_notification_algorithm.md
+├── 07_api.md
+├── 08_deployment.md
+├── 09_roadmap.md
+├── 10_decisions.md
+├── 11_glossary.md
+├── 12_testing_strategy.md
+├── 13_project_structure.md
 ├── package.json
-├── tsconfig.json
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example
-├── .gitignore
+├── prisma.config.ts
+├── prisma/
+│   ├── schema.prisma
+│   └── migrations/
+├── generated/
+│   └── prisma/
+├── kufmon/
+├── src/
+│   ├── app.ts
+│   ├── cron.ts
+│   ├── db.ts
+│   ├── kufar.ts
+│   ├── kufarItem.ts
+│   └── telegram.ts
 └── README.md
 ```
 
@@ -46,14 +58,12 @@ kufmon/
 ```
 src/
 
-├── api/
-├── application/
-├── domain/
-├── infrastructure/
-├── shared/
-
-├── app.ts
-└── server.ts
+├── app.ts            # Fastify server and simple UI
+├── cron.ts           # Scheduler for periodic sync
+├── db.ts             # Prisma client initialization
+├── kufar.ts          # Marketplace client and sync logic
+├── kufarItem.ts      # Item fetch/parsing helpers
+├── telegram.ts       # Telegram notification sender
 ```
 
 ---

@@ -1,8 +1,8 @@
 # 07. Service API
 
 **Version:** 1.0  
-**Status:** Draft  
-**Last updated:** 2026-07-20
+**Status:** Partially implemented (service provides a minimal set of endpoints)
+**Last updated:** 2026-07-21
 
 ---
 
@@ -12,19 +12,11 @@ This document defines the public API of the service.
 
 The API is independent of the implementation language and runtime.
 
-Current implementation target:
+Current implementation notes:
 
-- Google Apps Script
-- PostgreSQL
+- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, basic listings, `/sync`, `/kufar`, simple UI and user management endpoints): [src/app.ts](src/app.ts#L1).
 
-Future implementations may use:
-
-- Cloud Run
-- Node.js
-- Go
-- Java
-
-without changing this contract.
+Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.
 
 ---
 

@@ -18,6 +18,37 @@ app.get("/", async () => {
   };
 });
 
+app.get("/health", async () => {
+  let dbOk = false;
+  try {
+    // lightweight DB check
+    await prisma.$queryRaw`SELECT 1`;
+    dbOk = true;
+  } catch (err) {
+    dbOk = false;
+  }
+
+  const tgConfigured = !!process.env.TELEGRAM_TOKEN;
+
+  return {
+    status: "ok",
+    db: dbOk,
+    telegram: tgConfigured,
+    uptime: process.uptime(),
+  };
+});
+
+app.get("/metrics", async () => {
+  const listings = await prisma.listing.count();
+  const users = await prisma.user.count();
+
+  return {
+    uptime: process.uptime(),
+    listings,
+    users,
+  };
+});
+
 app.register(fastifyFormbody);
 
 app.get("/kufar", async () => {
@@ -40,6 +71,7 @@ app.get("/ui", async (req, reply) => {
   });
 
   const users = await prisma.user.findMany();
+  const subscriptions = await prisma.subscription.findMany({ take: 50, orderBy: { createdAt: 'desc' } });
 
   const html = `
 <!DOCTYPE html>
@@ -75,6 +107,43 @@ app.get("/ui", async (req, reply) => {
     <input name="rooms" placeholder="Rooms (2,3)" />
     <button type="submit">Создать</button>
   </form>
+
+<h2>Подписки</h2>
+<form method="POST" action="/subscriptions">
+  <input name="name" placeholder="Название подписки" />
+  <input name="userId" placeholder="User ID (optional)" />
+  <input name="intervalMinutes" placeholder="Интервал (мин)" />
+  <input name="filters" placeholder='Filters JSON (e.g. {"rooms":2})' />
+  <button type="submit">Создать подписку</button>
+</form>
+
+<h3>Существующие подписки</h3>
+<table>
+  <tr>
+    <th>ID</th>
+    <th>Name</th>
+    <th>User</th>
+    <th>Interval</th>
+    <th>Enabled</th>
+    <th></th>
+  </tr>
+
+  ${subscriptions.map(s => `
+        <tr>
+          <td>${s.id}</td>
+          <td>${s.name}</td>
+          <td>${s.userId ?? '-'}</td>
+          <td>${s.intervalMinutes}</td>
+          <td>${s.enabled ? '✅' : '❌'}</td>
+          <td>
+            <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')">
+              <input type="hidden" name="id" value="${s.id}" />
+              <button type="submit" style="color:red">Удалить</button>
+            </form>
+          </td>
+        </tr>
+      `).join('')}
+</table>
 
 <h2>Пользователи</h2>
 <table>
@@ -167,6 +236,32 @@ app.post("/users", async (req: any, reply) => {
   });
 
   reply.redirect("/ui");
+});
+
+app.post('/subscriptions', async (req: any, reply) => {
+  const body = req.body;
+
+  let filters = null;
+  try { filters = body.filters ? JSON.parse(body.filters) : null; } catch { filters = null; }
+
+  await prisma.subscription.create({
+    data: {
+      name: body.name || 'unnamed',
+      userId: body.userId || null,
+      filters,
+      intervalMinutes: body.intervalMinutes ? Number(body.intervalMinutes) : 30,
+    }
+  });
+
+  reply.redirect('/ui');
+});
+
+app.post('/subscriptions/delete', async (req: any, reply) => {
+  const id = req.body.id;
+
+  await prisma.subscription.delete({ where: { id } });
+
+  reply.redirect('/ui');
 });
 
 app.post("/users/delete", async (req: any, reply) => {

@@ -32,7 +32,7 @@ Development follows these principles:
 | Notification Design | ✅ Complete |
 | REST API Design | ✅ Complete |
 | Documentation | ✅ Complete |
-| Implementation | ⏳ Not Started |
+| Implementation | ⚠️ Partially Implemented |
 
 ---
 
@@ -138,6 +138,24 @@ The MVP is complete when:
 - REST API works;
 - automated tests pass;
 - Docker deployment succeeds.
+
+--
+
+## Current implementation status (summary)
+
+- Server & API: реализован HTTP-сервер с базовыми эндпойнтами и простым UI ([src/app.ts](src/app.ts#L1)).
+- Synchronization: cron-работа и логика синхронизации/сохранения объявлений реализованы ([src/cron.ts](src/cron.ts#L1), [src/kufar.ts](src/kufar.ts#L1)).
+- Database: Prisma-схема и миграции есть, модель `PriceHistory` и `User` присутствуют ([prisma/schema.prisma](prisma/schema.prisma#L1)).
+- Notifications: отправка в Telegram реализована ([src/telegram.ts](src/telegram.ts#L1)).
+- UI: простая админская страница `/ui` для просмотра объявлений и пользователей ([src/app.ts](src/app.ts#L1)).
+
+## Outstanding work to reach MVP exit criteria
+
+- Добавить полноценное тестовое покрытие (unit/repository/mapper/sync).
+- Внедрить retry-политики и обработку ошибок при запросах к Kufar.
+- Добавить структурированное логирование, health/metrics и мониторинг.
+- Подготовить Docker образ/compose и CI-пайплайн для развёртывания.
+- Проверить и завершить все миграции и seed-скрипты.
 
 ---
 

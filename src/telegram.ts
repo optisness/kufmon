@@ -3,22 +3,28 @@ export async function sendTelegram(
   chatId: string
 ) {
   const token = process.env.TELEGRAM_TOKEN;
-  console.log("TG TOKEN:", process.env.TELEGRAM_TOKEN);
 
   if (!token) {
-    console.log("Telegram not configured");
-    return;
+    // Telegram not configured — skip but don't leak secrets
+    return false;
   }
 
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: message,
-      disable_web_page_preview: true,
-    }),
-  });
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        disable_web_page_preview: true,
+      }),
+    });
+
+    return res.ok;
+  } catch (err) {
+    console.error("Telegram send error:", err);
+    return false;
+  }
 }
