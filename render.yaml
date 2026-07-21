@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: kufmon
+    env: node
+    region: oregon
+    branch: main
+    root: .
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    plan: free
