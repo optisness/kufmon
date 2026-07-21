@@ -16,6 +16,7 @@ const candidates = [
 ];
 let root = null;
 let distPath = null;
+const checked = [];
 
 function findDist(rootDir) {
   const tryPaths = [
@@ -28,6 +29,7 @@ function findDist(rootDir) {
   ];
 
   for (const candidate of tryPaths) {
+    checked.push(candidate);
     if (existsSync(candidate)) {
       distPath = candidate;
       return true;
@@ -44,11 +46,22 @@ for (const dir of candidates) {
   }
 }
 
+console.log('start.js cwd:', cwd);
+console.log('start.js file location:', startDir);
+console.log('Checked candidate roots:', candidates);
+console.log('Checked dist paths:', checked);
+
 if (!root) {
-  throw new Error(`Cannot find dist/app.js. Checked roots: ${candidates.join(', ')}`);
+  throw new Error(`Cannot find dist/app.js. Checked: ${checked.join(', ')}`);
 }
 
 process.chdir(root);
 console.log(`Starting from root: ${root}`);
+console.log(`Loading dist app from: ${distPath}`);
 
-await import(`file://${distPath}`);
+try {
+  await import(`file://${distPath}`);
+} catch (err) {
+  console.error('Failed to import dist/app.js:', err);
+  throw err;
+}
