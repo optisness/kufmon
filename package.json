@@ -14,7 +14,8 @@
     "@fastify/formbody": "^7.0.0",
     "@prisma/client": "^6.19.3",
     "fastify": "^4.29.1",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

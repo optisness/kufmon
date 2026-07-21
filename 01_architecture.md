@@ -132,6 +132,7 @@ NotificationService
 │--------------------------------------------│
 │ REST API                                  │
 │ Health Endpoint                           │
+│ Metrics Endpoint                          │
 └────────────────────────────────────────────┘
                     │
                     ▼
@@ -165,6 +166,7 @@ NotificationService
 │ Telegram                                  │
 │ Scheduler                                 │
 │ Logging                                   │
+│ Metrics                                   │
 └────────────────────────────────────────────┘
 ```
 

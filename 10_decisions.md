@@ -482,6 +482,7 @@ Benefits:
 - tracing;
 - debugging;
 - monitoring.
+- the service exposes `/health` and `/metrics` endpoints for operational visibility.
 
 ---
 

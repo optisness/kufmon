@@ -390,7 +390,10 @@ Minimum monitoring:
 
 - application logs
 - health endpoint
+- metrics endpoint
 - scheduler status
+
+The service currently exposes `/health` and `/metrics`, and logs are emitted as structured JSON to stdout using Pino.
 
 Future monitoring:
 

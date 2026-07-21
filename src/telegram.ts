@@ -1,3 +1,7 @@
+import { createLogger } from "./logger.js";
+
+const logger = createLogger({ module: "telegram" });
+
 export async function sendTelegram(
   message: string,
   chatId: string
@@ -5,7 +9,7 @@ export async function sendTelegram(
   const token = process.env.TELEGRAM_TOKEN;
 
   if (!token) {
-    // Telegram not configured — skip but don't leak secrets
+    logger.warn("Telegram token is not configured; skipping send");
     return false;
   }
 
@@ -24,7 +28,7 @@ export async function sendTelegram(
 
     return res.ok;
   } catch (err) {
-    console.error("Telegram send error:", err);
+    logger.error({ err }, "Telegram send error");
     return false;
   }
 }

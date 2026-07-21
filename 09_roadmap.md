@@ -147,15 +147,16 @@ The MVP is complete when:
 - Synchronization: cron-работа и логика синхронизации/сохранения объявлений реализованы ([src/cron.ts](src/cron.ts#L1), [src/kufar.ts](src/kufar.ts#L1)).
 - Database: Prisma-схема и миграции есть, модель `PriceHistory` и `User` присутствуют ([prisma/schema.prisma](prisma/schema.prisma#L1)).
 - Notifications: отправка в Telegram реализована ([src/telegram.ts](src/telegram.ts#L1)).
+- Monitoring: базовые endpoints `/health` и `/metrics` реализованы, логирование через Pino.
 - UI: простая админская страница `/ui` для просмотра объявлений и пользователей ([src/app.ts](src/app.ts#L1)).
 
 ## Outstanding work to reach MVP exit criteria
 
 - Добавить полноценное тестовое покрытие (unit/repository/mapper/sync).
 - Внедрить retry-политики и обработку ошибок при запросах к Kufar.
-- Добавить структурированное логирование, health/metrics и мониторинг.
 - Подготовить Docker образ/compose и CI-пайплайн для развёртывания.
 - Проверить и завершить все миграции и seed-скрипты.
+- Расширить мониторинг за пределы базовых метрик и health-проверок.
 
 ---
 

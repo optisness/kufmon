@@ -1,5 +1,9 @@
 import { prisma } from "./db.js";
 import { sendTelegram } from "./telegram.js";
+import { createLogger } from "./logger.js";
+import { incMetric } from "./metrics.js";
+
+const logger = createLogger({ module: "kufar" });
 
 async function fetchWithRetry(url: string, options: any = {}, retries = 3, backoff = 500) {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -31,6 +35,8 @@ export async function saveKufarAds() {
   const data = await fetchKufarMap();
   const ads = data.ads ?? [];
 
+  incMetric("adsFetched", ads.length);
+
   const users = await prisma.user.findMany();
 
   const currentIds = new Set<string>(ads.map((ad: any) => String(ad.i)));
@@ -56,6 +62,7 @@ export async function saveKufarAds() {
 
     // history for new
     if (isNew) {
+      incMetric("newListings");
       await prisma.priceHistory.create({
         data: {
           listingId: id,
@@ -66,7 +73,8 @@ export async function saveKufarAds() {
 
     // price changed
     if (existing && existing.price !== price) {
-      console.log(`PRICE CHANGED: ${id} ${existing.price} -> ${price}`);
+      incMetric("priceChanges");
+      logger.info({ id, oldPrice: existing.price, newPrice: price }, "Price changed");
 
       await prisma.priceHistory.create({
         data: {
@@ -121,7 +129,7 @@ export async function saveKufarAds() {
   }
 
   // deactivate missing
-  await prisma.listing.updateMany({
+  const deactivated = await prisma.listing.updateMany({
     where: {
       id: {
         notIn: Array.from(currentIds) as string[],
@@ -133,7 +141,11 @@ export async function saveKufarAds() {
     },
   });
 
+  incMetric("deactivations", deactivated.count ?? 0);
+
   // send Telegram alerts
+  let notificationsSent = 0;
+
   for (const user of users) {
     const alerts = userAlerts[user.id];
 
@@ -143,9 +155,12 @@ export async function saveKufarAds() {
     const chunks = text.match(/[\s\S]{1,3500}/g) || [];
 
     for (const chunk of chunks) {
-      await sendTelegram(chunk, user.telegramChatId);
+      const ok = await sendTelegram(chunk, user.telegramChatId);
+      if (ok) notificationsSent += 1;
     }
   }
+
+  incMetric("alertsSent", notificationsSent);
 
   return ads.length;
 }

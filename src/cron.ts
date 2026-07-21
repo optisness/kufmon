@@ -1,17 +1,22 @@
 import cron from "node-cron";
 import { saveKufarAds } from "./kufar.js";
+import { createLogger } from "./logger.js";
+import { incMetric } from "./metrics.js";
+
+const logger = createLogger({ module: "cron" });
 
 export function startCron() {
-  console.log("⏱ Cron started (every 5 min)");
+  logger.info({ interval: "5m" }, "Cron started");
 
   cron.schedule("*/5 * * * *", async () => {
-    console.log("⏳ Running sync...");
+    logger.info("Running sync...");
+    incMetric("syncRuns");
 
     try {
       const result = await saveKufarAds();
-      console.log("✅ Sync done:", result);
+      logger.info({ synced: result }, "Sync done");
     } catch (err) {
-      console.error("❌ Cron error:", err);
+      logger.error({ err }, "Cron error");
     }
   });
 }

@@ -4,9 +4,11 @@ import { prisma } from "./db.js";
 import { fetchKufarMap, saveKufarAds } from "./kufar.js";
 import { startCron } from "./cron.js";
 import { sendTelegram } from "./telegram.js";
+import { logger } from "./logger.js";
+import { metrics, incMetric } from "./metrics.js";
 
 const app = Fastify({
-  logger: true,
+  logger,
 });
 
 app.get("/", async () => {
@@ -46,6 +48,7 @@ app.get("/metrics", async () => {
     uptime: process.uptime(),
     listings,
     users,
+    metrics,
   };
 });
 
@@ -57,6 +60,7 @@ app.get("/kufar", async () => {
 });
 
 app.get("/sync", async () => {
+  incMetric("syncRuns");
   const count = await saveKufarAds();
 
   return {

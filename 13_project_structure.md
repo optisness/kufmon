@@ -124,9 +124,12 @@ Example:
 
 ```
 GET /health
+GET /metrics
+GET /sync
+GET /kufar
+GET /ui
 
 GET /ads
-
 POST /subscriptions
 ```
 
@@ -570,11 +573,21 @@ The scheduler only starts synchronization.
 
 Logging implementation.
 
+Implemented in `src/logger.ts` using Pino.
+
 Recommended:
 
 ```
 Pino
 ```
+
+---
+
+# infrastructure/metrics/
+
+Metrics implementation.
+
+Implemented in `src/metrics.ts` for sync counters and runtime diagnostics.
 
 ---
 

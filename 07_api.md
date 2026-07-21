@@ -14,7 +14,7 @@ The API is independent of the implementation language and runtime.
 
 Current implementation notes:
 
-- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, basic listings, `/sync`, `/kufar`, simple UI and user management endpoints): [src/app.ts](src/app.ts#L1).
+- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, simple UI and user management endpoints): [src/app.ts](src/app.ts#L1).
 
 Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.
 
@@ -267,9 +267,68 @@ Returns:
 
 ```json
 {
-    "status": "ok"
+    "status": "ok",
+    "db": true,
+    "telegram": false,
+    "uptime": 123.45
 }
 ```
+
+The `/health` endpoint verifies database connectivity and whether Telegram configuration is present. A missing Telegram token does not fail the health response, but is reported with `telegram: false`.
+
+---
+
+# Metrics
+
+```
+
+GET /metrics
+
+```
+
+Returns runtime and sync counters:
+
+```json
+{
+    "uptime": 123.45,
+    "listings": 42,
+    "users": 3,
+    "metrics": {
+        "syncRuns": 7,
+        "adsFetched": 124,
+        "newListings": 10,
+        "priceChanges": 4,
+        "alertsSent": 13,
+        "deactivations": 2
+    }
+}
+```
+
+# Manual Sync
+
+```
+
+GET /sync
+
+```
+
+Triggers a manual synchronization run and returns the number of ads processed.
+
+```json
+{
+    "synced": 12
+}
+```
+
+# Raw Kufar Payload
+
+```
+
+GET /kufar
+
+```
+
+Returns the latest raw Kufar payload fetched by the service.
 
 ---
 

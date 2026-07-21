@@ -95,6 +95,7 @@ Future versions will support:
 | Notifications | Telegram Bot API |
 | Validation | Zod |
 | Logging | Pino |
+| Monitoring | `/health`, `/metrics` |
 | Testing | Vitest |
 | Containerization | Docker |
 | Repository | GitHub |
