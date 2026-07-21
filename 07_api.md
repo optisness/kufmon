@@ -60,13 +60,16 @@ Request:
 ```json
 {
     "name": "Minsk 2 rooms",
+    "userId": "user-123",
     "filters": {
-        "rooms": 2,
+        "rooms": [2],
         "price_max": 80000
     },
     "interval_minutes": 30
 }
 ```
+
+A subscription owns optional filter criteria and is attached to a single user. During synchronization, personal subscriptions are evaluated in addition to the user's default preferences.
 
 Response:
 

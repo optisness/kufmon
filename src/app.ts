@@ -113,11 +113,12 @@ app.get("/ui", async (req, reply) => {
   </form>
 
 <h2>Подписки</h2>
+<p>Подписка привязана к пользователю и задаёт дополнительные пользовательские фильтры для уведомлений.</p>
 <form method="POST" action="/subscriptions">
   <input name="name" placeholder="Название подписки" />
   <input name="userId" placeholder="User ID (optional)" />
   <input name="intervalMinutes" placeholder="Интервал (мин)" />
-  <input name="filters" placeholder='Filters JSON (e.g. {"rooms":2})' />
+  <input name="filters" placeholder='Filters JSON (e.g. {"price_max":80000,"rooms":[2]})' />
   <button type="submit">Создать подписку</button>
 </form>
 
@@ -126,8 +127,9 @@ app.get("/ui", async (req, reply) => {
   <tr>
     <th>ID</th>
     <th>Name</th>
-    <th>User</th>
+    <th>Owner</th>
     <th>Interval</th>
+    <th>Filters</th>
     <th>Enabled</th>
     <th></th>
   </tr>
@@ -138,6 +140,7 @@ app.get("/ui", async (req, reply) => {
           <td>${s.name}</td>
           <td>${s.userId ?? '-'}</td>
           <td>${s.intervalMinutes}</td>
+          <td>${s.filters ? JSON.stringify(s.filters) : '-'}</td>
           <td>${s.enabled ? '✅' : '❌'}</td>
           <td>
             <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')">

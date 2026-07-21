@@ -225,8 +225,6 @@ Support multiple independent users.
 Features
 
 - User accounts
-- Authentication
-- Authorization
 - Personal subscriptions
 - User preferences
 

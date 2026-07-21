@@ -38,13 +38,78 @@ export async function saveKufarAds() {
   incMetric("adsFetched", ads.length);
 
   const users = await prisma.user.findMany();
+  const subscriptions = await prisma.subscription.findMany({
+    where: {
+      enabled: true,
+      userId: { not: null },
+    },
+  });
 
   const currentIds = new Set<string>(ads.map((ad: any) => String(ad.i)));
 
   const userAlerts: Record<string, string[]> = {};
+  const subscriptionsByUser: Record<string, any[]> = {};
 
   for (const user of users) {
     userAlerts[user.id] = [];
+    subscriptionsByUser[user.id] = [];
+  }
+
+  for (const subscription of subscriptions) {
+    if (subscription.userId && subscriptionsByUser[subscription.userId]) {
+      subscriptionsByUser[subscription.userId].push(subscription);
+    }
+  }
+
+  function parseFilters(filters: any) {
+    if (!filters) return null;
+    if (typeof filters === "string") {
+      try {
+        return JSON.parse(filters);
+      } catch {
+        return null;
+      }
+    }
+    return filters;
+  }
+
+  function matchesFilter(filter: any, ad: any) {
+    if (!filter) return true;
+
+    const price = ad.p ?? 0;
+    const rooms = ad.rooms ?? null;
+
+    if (filter.price_max != null) {
+      if (!(price > 0 && price <= filter.price_max)) return false;
+    }
+
+    if (filter.maxPrice != null) {
+      if (!(price > 0 && price <= filter.maxPrice)) return false;
+    }
+
+    if (filter.rooms != null) {
+      if (!rooms || !filter.rooms.includes(rooms)) return false;
+    }
+
+    return true;
+  }
+
+  function matchesUserPrefs(user: any, ad: any) {
+    const price = ad.p ?? 0;
+    const rooms = ad.rooms ?? null;
+
+    const matchesPrice = !user.maxPrice || (price > 0 && price <= user.maxPrice);
+    const matchesRooms = !user.rooms || (rooms && user.rooms.includes(rooms));
+
+    return matchesPrice && matchesRooms;
+  }
+
+  function matchesSubscription(user: any, ad: any) {
+    const userSubs = subscriptionsByUser[user.id] || [];
+    return userSubs.some((subscription) => {
+      const filter = parseFilters(subscription.filters);
+      return matchesFilter(filter, ad);
+    });
   }
 
   for (const ad of ads) {
@@ -86,10 +151,9 @@ export async function saveKufarAds() {
       // price drop alerts
       if (price < existing.price) {
         for (const user of users) {
-          const matchesPrice = !user.maxPrice || (price > 0 && price <= user.maxPrice);
-          const matchesRooms = !user.rooms || (rooms && user.rooms.includes(rooms));
+          const userMatch = matchesSubscription(user, ad) || matchesUserPrefs(user, ad);
 
-          if (matchesPrice && matchesRooms) {
+          if (userMatch) {
             userAlerts[user.id].push(
               `📉 Цена упала!\n${existing.price} → ${price}\nhttps://re.kufar.by/vi/${id}`
             );
@@ -100,10 +164,9 @@ export async function saveKufarAds() {
 
     // new ad alerts
     for (const user of users) {
-      const matchesPrice = !user.maxPrice || (price > 0 && price <= user.maxPrice);
-      const matchesRooms = !user.rooms || (rooms && user.rooms.includes(rooms));
+      const userMatch = matchesSubscription(user, ad) || matchesUserPrefs(user, ad);
 
-      if (isNew && matchesPrice && matchesRooms) {
+      if (isNew && userMatch) {
         userAlerts[user.id].push(`🔥 ${price} | ${rooms ?? "?"}к\nhttps://re.kufar.by/vi/${id}`);
       }
     }
