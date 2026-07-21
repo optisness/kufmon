@@ -11,14 +11,63 @@ const app = Fastify({
   logger,
 });
 
-app.get("/", async () => {
-  const count = await prisma.listing.count();
+app.get("/", async (req, reply) => {
+  const html = `
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kufmon Dashboard</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+    .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h1 { color: #333; margin-bottom: 30px; }
+    .nav { display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
+    .nav a { padding: 10px 15px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; }
+    .nav a:hover { background: #0056b3; }
+    .card { background: #f9f9f9; padding: 15px; margin: 10px 0; border-left: 4px solid #007bff; border-radius: 4px; }
+    .card h3 { margin-top: 0; color: #007bff; }
+    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏠 Kufmon Dashboard</h1>
+    
+    <div class="nav">
+      <a href="/ui">📋 Admin UI</a>
+      <a href="/health">💚 Health Check</a>
+      <a href="/metrics">📊 Metrics</a>
+      <a href="/kufar">🏠 Kufar API</a>
+      <a href="/sync">🔄 Manual Sync</a>
+    </div>
 
-  return {
-    status: "ok",
-    listings: count,
-  };
+    <div class="card">
+      <h3>Status</h3>
+      <p><strong>Service:</strong> Running ✅</p>
+      <p><strong>Endpoint:</strong> <code>https://kufmon.onrender.com</code></p>
+    </div>
+
+    <div class="card">
+      <h3>Quick Links</h3>
+      <ul>
+        <li><a href="/ui">Go to Admin UI</a> - manage users, subscriptions, and listings</li>
+        <li><a href="/health">Check health</a> - database and Telegram status</li>
+        <li><a href="/metrics">View metrics</a> - sync stats and uptime</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>API Documentation</h3>
+      <p>See <code>/ui</code> for the admin interface or refer to API docs for programmatic access.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+  reply.type("text/html; charset=utf-8").send(html);
 });
+
 
 app.get("/health", async () => {
   let dbOk = false;
@@ -82,141 +131,195 @@ app.get("/ui", async (req, reply) => {
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Kufmon UI</title>
+  <title>Kufmon Admin UI</title>
 
   <style>
-    body { font-family: Arial; padding: 20px; }
+    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+    .container { max-width: 1400px; margin: 0 auto; }
+    .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .nav { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .nav a { padding: 8px 12px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; font-size: 14px; }
+    .nav a:hover { background: #0056b3; }
+    .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h2 { color: #333; margin-top: 0; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+    h3 { color: #555; margin-top: 20px; }
     table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
-    th { background: #f5f5f5; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f5f5f5; font-weight: bold; }
     tr:hover { background: #f9f9f9; }
-    .price { font-weight: bold; }
-    .new { color: green; }
-    button { padding: 8px 12px; cursor: pointer; }
-    input { margin: 4px; padding: 6px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+    input, textarea { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: Arial; width: 100%; box-sizing: border-box; }
+    input:focus, textarea:focus { outline: none; border-color: #007bff; box-shadow: 0 0 4px rgba(0,123,255,0.25); }
+    button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #0056b3; }
+    .btn-danger { background: #dc3545; }
+    .btn-danger:hover { background: #c82333; }
+    .price { font-weight: bold; color: #28a745; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
   </style>
 </head>
 
 <body>
-  <h1>Kufmon UI</h1>
+  <div class="container">
+    <div class="header">
+      <h1>Kufmon Admin UI</h1>
+      <div class="nav">
+        <a href="/">← Dashboard</a>
+        <a href="/health">Health</a>
+        <a href="/metrics">Metrics</a>
+      </div>
+    </div>
 
-  <h2>Синхронизация</h2>
-  <button onclick="runSync()">Запустить sync</button>
-  <div id="sync-result"></div>
+    <div class="section">
+      <h2>Синхронизация</h2>
+      <button onclick="runSync()">▶ Запустить sync</button>
+      <span id="sync-result"></span>
+    </div>
 
-  <h2>Создать пользователя</h2>
-  <form method="POST" action="/users">
-    <input name="chatId" placeholder="Telegram Chat ID" />
-    <input name="maxPrice" placeholder="Max Price" />
-    <input name="rooms" placeholder="Rooms (2,3)" />
-    <button type="submit">Создать</button>
-  </form>
+    <div class="section">
+      <h2>Пользователи</h2>
+      <h3>Создать пользователя</h3>
+      <form method="POST" action="/users" style="max-width: 400px;">
+        <div class="form-group">
+          <label>Telegram Chat ID</label>
+          <input name="chatId" placeholder="e.g., 123456789" required />
+        </div>
+        <div class="form-group">
+          <label>Max Price (optional)</label>
+          <input name="maxPrice" placeholder="e.g., 100000" type="number" />
+        </div>
+        <div class="form-group">
+          <label>Rooms (comma-separated, optional)</label>
+          <input name="rooms" placeholder="e.g., 2,3" />
+        </div>
+        <button type="submit">Создать пользователя</button>
+      </form>
 
-<h2>Подписки</h2>
-<p>Подписка привязана к пользователю и задаёт дополнительные пользовательские фильтры для уведомлений.</p>
-<form method="POST" action="/subscriptions">
-  <input name="name" placeholder="Название подписки" />
-  <input name="userId" placeholder="User ID (optional)" />
-  <input name="intervalMinutes" placeholder="Интервал (мин)" />
-  <input name="filters" placeholder='Filters JSON (e.g. {"price_max":80000,"rooms":[2]})' />
-  <button type="submit">Создать подписку</button>
-</form>
-
-<h3>Существующие подписки</h3>
-<table>
-  <tr>
-    <th>ID</th>
-    <th>Name</th>
-    <th>Owner</th>
-    <th>Interval</th>
-    <th>Filters</th>
-    <th>Enabled</th>
-    <th></th>
-  </tr>
-
-  ${subscriptions.map(s => `
+      <h3>Существующие пользователи</h3>
+      <table>
         <tr>
-          <td>${s.id}</td>
-          <td>${s.name}</td>
-          <td>${s.userId ?? '-'}</td>
-          <td>${s.intervalMinutes}</td>
-          <td>${s.filters ? JSON.stringify(s.filters) : '-'}</td>
-          <td>${s.enabled ? '✅' : '❌'}</td>
-          <td>
-            <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')">
-              <input type="hidden" name="id" value="${s.id}" />
-              <button type="submit" style="color:red">Удалить</button>
-            </form>
-          </td>
+          <th>Chat ID</th>
+          <th>Max Price</th>
+          <th>Rooms</th>
+          <th></th>
         </tr>
-      `).join('')}
-</table>
+        ${users.map(u => `
+          <tr>
+            <td>${u.telegramChatId}</td>
+            <td>${u.maxPrice ?? "-"}</td>
+            <td>${u.rooms.join(", ") || "-"}</td>
+            <td>
+              <form method="POST" action="/users/delete" onsubmit="return confirm('Удалить пользователя?')" style="display:inline;">
+                <input type="hidden" name="id" value="${u.id}" />
+                <button type="submit" class="btn-danger" style="padding:5px 10px;">Удалить</button>
+              </form>
+            </td>
+          </tr>
+        `).join("")}
+      </table>
+    </div>
 
-<h2>Пользователи</h2>
-<table>
-  <tr>
-    <th>Chat ID</th>
-    <th>Max Price</th>
-    <th>Rooms</th>
-    <th></th>
-  </tr>
+    <div class="section">
+      <h2>Подписки</h2>
+      <p><em>Подписка привязана к пользователю и задаёт дополнительные фильтры для уведомлений.</em></p>
+      <h3>Создать подписку</h3>
+      <form method="POST" action="/subscriptions" style="max-width: 600px;">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Название подписки</label>
+            <input name="name" placeholder="e.g., Minsk 2 rooms" required />
+          </div>
+          <div class="form-group">
+            <label>User ID (optional)</label>
+            <input name="userId" placeholder="Оставить пусто для глобальной подписки" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Интервал (минуты)</label>
+            <input name="intervalMinutes" type="number" value="30" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Filters (JSON)</label>
+          <textarea name="filters" placeholder='{"price_max": 80000, "rooms": [2]}' rows="3"></textarea>
+        </div>
+        <button type="submit">Создать подписку</button>
+      </form>
 
-  ${users.map(u => `
-    <tr>
-      <td>${u.telegramChatId}</td>
-      <td>${u.maxPrice ?? "-"}</td>
-      <td>${u.rooms.join(", ")}</td>
-      <td>
-        <form method="POST" action="/users/delete" onsubmit="return confirm('Удалить пользователя?')">
-          <input type="hidden" name="id" value="${u.id}" />
-          <button type="submit" style="color:red">Удалить</button>
-        </form>
-      </td>
-    </tr>
-  `).join("")}
-</table>
+      <h3>Существующие подписки</h3>
+      <table>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Owner</th>
+          <th>Interval</th>
+          <th>Filters</th>
+          <th>Enabled</th>
+          <th></th>
+        </tr>
+        ${subscriptions.map(s => `
+          <tr>
+            <td style="font-size:12px; max-width:100px; word-break:break-all;">${s.id}</td>
+            <td>${s.name}</td>
+            <td>${s.userId ?? '-'}</td>
+            <td>${s.intervalMinutes} мин</td>
+            <td><code style="font-size:11px;">${s.filters ? JSON.stringify(s.filters) : '-'}</code></td>
+            <td>${s.enabled ? '✅' : '❌'}</td>
+            <td>
+              <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')" style="display:inline;">
+                <input type="hidden" name="id" value="${s.id}" />
+                <button type="submit" class="btn-danger" style="padding:5px 10px;">Удалить</button>
+              </form>
+            </td>
+          </tr>
+        `).join('')}
+      </table>
+    </div>
 
-  <h2>Объявления</h2>
-
-  <table>
-    <tr>
-      <th>ID</th>
-      <th>Цена</th>
-      <th>Комнаты</th>
-      <th>Ссылка</th>
-      <th>Активно</th>
-    </tr>
-
-    ${listings.map(l => `
-      <tr>
-        <td>${l.id}</td>
-        <td class="price">${l.price}</td>
-        <td>${l.rooms ?? "-"}</td>
-        <td>
-  <a href="${l.url}" target="_blank">открыть</a>
-  <br/>
-  <a href="/history/${l.id}" target="_blank">история</a>
-</td>
-        <td>${l.isActive ? "✅" : "❌"}</td>
-      </tr>
-    `).join("")}
-  </table>
+    <div class="section">
+      <h2>Объявления</h2>
+      <p>Последние 50 объявлений</p>
+      <table>
+        <tr>
+          <th>ID</th>
+          <th>Название</th>
+          <th>Цена</th>
+          <th>Комнаты</th>
+          <th>Ссылка</th>
+          <th>Активно</th>
+        </tr>
+        ${listings.map(l => `
+          <tr>
+            <td style="font-size:11px;">${l.id}</td>
+            <td>${l.title}</td>
+            <td class="price">${l.price}</td>
+            <td>${l.rooms ?? "-"}</td>
+            <td>
+              <a href="${l.url}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
+              <br/>
+              <a href="/history/${l.id}" target="_blank" style="color:#666; text-decoration:none; font-size:12px;">история</a>
+            </td>
+            <td>${l.isActive ? "✅" : "❌"}</td>
+          </tr>
+        `).join("")}
+      </table>
+    </div>
+  </div>
 
   <script>
     async function runSync() {
       const el = document.getElementById("sync-result");
-      el.innerText = "Синхронизация...";
+      el.innerText = " Синхронизация...";
 
       try {
         const res = await fetch("/sync");
         const data = await res.json();
-
-        el.innerText = "Готово: " + JSON.stringify(data);
-
-        // автообновление страницы
-        setTimeout(() => location.reload(), 1000);
+        el.innerText = " ✅ Готово: " + JSON.stringify(data);
+        setTimeout(() => location.reload(), 1500);
       } catch (e) {
-        el.innerText = "Ошибка";
+        el.innerText = " ❌ Ошибка";
       }
     }
   </script>
@@ -289,26 +392,15 @@ app.get("/history/:id", async (req: any, reply) => {
     orderBy: { createdAt: "desc" },
   });
 
-  const html = `
-    <html>
-      <head>
-        <meta charset="UTF-8" />
-      </head>
-      <body style="font-family: Arial; padding: 20px">
-        <h2>История цен</h2>
-
-        ${history
-          .map(
-            (h) => `
-          <div>
-            ${h.price} — ${new Date(h.createdAt).toLocaleString()}
-          </div>
-        `
-          )
-          .join("")}
-      </body>
-    </html>
-  `;
+  let html = "<html><head><meta charset='UTF-8' /></head>";
+  html += "<body style='font-family: Arial; padding: 20px'>";
+  html += "<h2>История цен</h2>";
+  
+  for (const h of history) {
+    html += "<div>" + h.price + " — " + new Date(h.createdAt).toLocaleString() + "</div>";
+  }
+  
+  html += "</body></html>";
 
   reply.type("text/html; charset=utf-8").send(html);
 });
@@ -318,7 +410,7 @@ app.get("/test-tg", async () => {
 
   for (const user of users) {
     await sendTelegram(
-      `TEST FROM RENDER`,
+      "TEST FROM RENDER",
       user.telegramChatId
     );
   }
