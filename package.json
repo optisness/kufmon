@@ -8,7 +8,7 @@
     "prebuild": "npm run generate",
     "build": "tsc",
     "postinstall": "npm run build",
-    "start": "node dist/app.js",
+    "start": "node start.js",
     "test": "vitest"
   },
   "dependencies": {
