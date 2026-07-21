@@ -25,7 +25,10 @@ function findDist(rootDir) {
     join(rootDir, '..', 'dist', 'app.js'),
     join(rootDir, '..', 'src', 'dist', 'app.js'),
     join(rootDir, '../..', 'dist', 'app.js'),
-    join(rootDir, '../..', 'src', 'dist', 'app.js')
+    join(rootDir, '../..', 'src', 'dist', 'app.js'),
+    join(rootDir, 'app.js'),
+    join(rootDir, '../app.js'),
+    join(rootDir, '../..', 'app.js')
   ];
 
   for (const candidate of tryPaths) {
