@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/app.ts",
+    "generate": "npx prisma generate",
+    "prebuild": "npm run generate",
     "build": "tsc",
     "start": "node dist/app.js",
     "test": "vitest"

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseListingData } from '../src/kufarItem';
+import { parseListingData } from '../src/kufarItem.js';
 
 describe('parseListingData', () => {
   it('parses title, price, rooms and area from html', () => {
