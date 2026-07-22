@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import fastifyFormbody from "@fastify/formbody";
 import { prisma } from "./db.js";
-import { fetchKufarMap, saveKufarAds } from "./kufar.js";
+import { fetchKufarMap, saveKufarAds, KUFAR_CATEGORIES } from "./kufar.js";
 import { startCron } from "./cron.js";
 import { sendTelegram } from "./telegram.js";
 import { logger } from "./logger.js";
@@ -196,6 +196,15 @@ app.get("/ui", async (req, reply) => {
     await prisma.subscription.findMany({ take: 50, orderBy: { createdAt: "desc" } }),
     usersById,
   );
+  const categoryOptions = [
+    { value: KUFAR_CATEGORIES.apartments, label: "Квартиры (1010)" },
+    { value: KUFAR_CATEGORIES.houses, label: "Дома (1020)" },
+    { value: KUFAR_CATEGORIES.commercial, label: "Коммерция (1050)" },
+    { value: KUFAR_CATEGORIES.land, label: "Земля (1080)" },
+  ];
+  const categoryLabelByValue = Object.fromEntries(
+    categoryOptions.map((option) => [option.value, option.label]),
+  );
   const userOptions = users
     .map((user) => {
       const label = user.name?.trim()
@@ -203,6 +212,9 @@ app.get("/ui", async (req, reply) => {
         : user.telegramChatId;
       return `<option value="${escapeHtml(user.id)}">${escapeHtml(label)}</option>`;
     })
+    .join("");
+  const categoryOptionMarkup = categoryOptions
+    .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
     .join("");
 
   const html = `
@@ -334,6 +346,12 @@ app.get("/ui", async (req, reply) => {
             <label>Интервал (минуты)</label>
             <input name="intervalMinutes" type="number" value="30" />
           </div>
+          <div class="form-group">
+            <label>Категория поиска</label>
+            <select name="category" required>
+              ${categoryOptionMarkup}
+            </select>
+          </div>
         </div>
         <div class="form-group">
           <label>Filters (JSON)</label>
@@ -349,6 +367,7 @@ app.get("/ui", async (req, reply) => {
           <th>ID</th>
           <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Name</th>
           <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="owner">Owner</th>
+          <th>Category</th>
           <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="interval">Interval</th>
           <th>Filters</th>
           <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="enabled">Enabled</th>
@@ -360,6 +379,7 @@ app.get("/ui", async (req, reply) => {
             <td style="font-size:12px; max-width:100px; word-break:break-all;">${s.id}</td>
             <td>${escapeHtml(s.name)}</td>
             <td>${escapeHtml(s.userId ? getUserDisplayName(usersById.get(s.userId)) : "-")}</td>
+            <td>${escapeHtml(s.category ? `${s.category} ${categoryLabelByValue[s.category] ? `(${categoryLabelByValue[s.category]})` : ""}` : "-")}</td>
             <td>${s.intervalMinutes} мин</td>
             <td><code style="font-size:11px;">${s.filters ? escapeHtml(JSON.stringify(s.filters)) : '-'}</code></td>
             <td>${s.enabled ? '✅' : '❌'}</td>
@@ -382,6 +402,7 @@ app.get("/ui", async (req, reply) => {
           <th>№</th>
           <th>ID</th>
           <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="title">Название</th>
+          <th>Category</th>
           <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="price">Цена</th>
           <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="rooms">Комнаты</th>
           <th>Ссылка</th>
@@ -392,6 +413,7 @@ app.get("/ui", async (req, reply) => {
             <td>${index + 1}</td>
             <td style="font-size:11px;">${l.id}</td>
             <td>${escapeHtml(l.title)}</td>
+            <td>${escapeHtml(l.category ? `${l.category} ${categoryLabelByValue[l.category] ? `(${categoryLabelByValue[l.category]})` : ""}` : "-")}</td>
             <td class="price">${l.price}</td>
             <td>${l.rooms ?? "-"}</td>
             <td>
@@ -526,6 +548,7 @@ app.post('/subscriptions', async (req: any, reply) => {
     data: {
       name: body.name || 'unnamed',
       userId: body.userId || null,
+      category: body.category || null,
       filters,
       intervalMinutes: body.intervalMinutes ? Number(body.intervalMinutes) : 30,
     }

@@ -98,12 +98,14 @@ CHECK гарантирует заполнение полей согласно `t
 Поисковые подписки.
 
 -   In the admin UI, `user_id` is selected from existing users instead of being entered manually.
+-   `category` stores the Kufar search category code used for the subscription, for example `1010` or `1050`.
 
   Поле
   -------------------
   id
   user_id
   name
+  category
   filter_json JSONB
   interval_minutes
   last_check_at
@@ -199,6 +201,7 @@ event_type:
 ## ads
 
 -   UNIQUE(source, source_ad_id)
+-   INDEX(category)
 -   INDEX(city)
 -   INDEX(price_usd)
 -   INDEX(rooms)
@@ -215,6 +218,7 @@ event_type:
 ## search_subscriptions
 
 -   INDEX(user_id)
+-   INDEX(category)
 -   INDEX(enabled)
 -   INDEX(last_check_at)
 

@@ -165,6 +165,7 @@ Conditions:
 - subscription enabled;
 - user has active plan;
 - event matches saved search.
+- if subscription has a category, the event must belong to the same category.
 
 Matching uses the normalized `ads` table, not raw JSON.
 

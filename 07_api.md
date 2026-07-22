@@ -62,6 +62,7 @@ Request:
 {
     "name": "Minsk 2 rooms",
     "userId": "user-123",
+    "category": "1010",
     "filters": {
         "rooms": [2],
         "price_max": 80000
@@ -72,7 +73,7 @@ Request:
 
 A subscription owns optional filter criteria and is attached to a single user. During synchronization, personal subscriptions are evaluated in addition to the user's default preferences.
 
-In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name.
+In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name. The new `category` field stores the Kufar category code used for the search, such as `1010`, `1020`, `1050`, or `1080`.
 
 Response:
 

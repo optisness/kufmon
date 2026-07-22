@@ -24,6 +24,7 @@ Future versions will support:
 - Multiple marketplaces.
 - Email notifications.
 - Admin UI at `/ui`.
+- Category-based search subscriptions.
 - User accounts.
 - Paid subscriptions.
 

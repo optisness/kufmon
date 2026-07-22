@@ -580,6 +580,18 @@ content_hash
 missing_count
 
 updated_at
+
+category
+```
+
+---
+
+## subscriptions
+
+Добавить
+
+```text
+category
 ```
 
 ---

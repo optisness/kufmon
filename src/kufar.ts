@@ -23,11 +23,9 @@ function buildKufarSearchUrl(options?: {
   language?: string;
   limit?: number;
   type?: string;
-  // Optional explicit numeric codes (Kufar uses these in `pu` for some params)
-  regionCode?: string | number; // `rgn`
-  areaCode?: string | number; // `ar`
-  // Rooms filter (e.g. `v.or:3`); leave undefined to not filter by rooms.
-  rooms?: string; // `rms`
+  regionCode?: string | number;
+  areaCode?: string | number;
+  rooms?: string;
 }) {
   const category =
     options?.category ??
@@ -95,9 +93,7 @@ function minorUnitsToNumber(value: any) {
   return n / 100;
 }
 
-function normalizeRenderedAd(ad: any) {
-  // Normalize rendered-paginated response into the legacy shape
-  // expected by the rest of this file (`i`, `subject`, `p`, `rooms`, `c`).
+function normalizeRenderedAd(ad: any, category: string | null) {
   const id = String(ad?.ad_id ?? ad?.list_id ?? "");
   const subject = ad?.subject ?? "Unknown";
   const roomsRaw = findAdParamValue(ad, "rooms");
@@ -111,6 +107,7 @@ function normalizeRenderedAd(ad: any) {
 
   const priceBynMinor = ad?.price_byn ?? null;
   const price = priceBynMinor != null ? minorUnitsToNumber(priceBynMinor) : 0;
+  const adCategory = ad?.category != null ? String(ad.category) : category;
 
   return {
     i: id,
@@ -118,24 +115,46 @@ function normalizeRenderedAd(ad: any) {
     p: price,
     rooms,
     c,
+    category: adCategory,
   };
 }
 
+async function resolveSyncCategories(options?: Parameters<typeof fetchKufarMap>[0]) {
+  if (options?.category) {
+    return [options.category];
+  }
+
+  const subscriptionCategories = await prisma.subscription.findMany({
+    where: {
+      enabled: true,
+      category: { not: null },
+    },
+    select: { category: true },
+  });
+
+  const categories = new Set<string>();
+
+  for (const subscription of subscriptionCategories) {
+    if (subscription.category) {
+      categories.add(subscription.category);
+    }
+  }
+
+  categories.add(process.env.KUFAR_CATEGORY ?? KUFAR_CATEGORIES.apartments);
+
+  return Array.from(categories);
+}
+
 export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]) {
-  const data = await fetchKufarMap(options);
-  const ads = Array.isArray(data.ads) ? data.ads.map(normalizeRenderedAd) : [];
-
-  incMetric("adsFetched", ads.length);
-
   const users = await prisma.user.findMany();
   const subscriptions = await prisma.subscription.findMany({
     where: {
       enabled: true,
-      userId: { not: null },
     },
   });
 
-  const currentIds = new Set<string>(ads.map((ad: any) => String(ad.i)));
+  const categoriesToSync = await resolveSyncCategories(options);
+  const currentIds = new Set<string>();
 
   const userAlerts: Record<string, string[]> = {};
   const subscriptionsByUser: Record<string, any[]> = {};
@@ -197,93 +216,108 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
   function matchesSubscription(user: any, ad: any) {
     const userSubs = subscriptionsByUser[user.id] || [];
     return userSubs.some((subscription) => {
+      if (subscription.category && ad.category && subscription.category !== ad.category) {
+        return false;
+      }
+
+      if (subscription.category && !ad.category) {
+        return false;
+      }
+
       const filter = parseFilters(subscription.filters);
       return matchesFilter(filter, ad);
     });
   }
 
-  for (const ad of ads) {
-    const id = String(ad.i);
+  for (const category of categoriesToSync) {
+    const data = await fetchKufarMap({ ...options, category });
+    const ads = Array.isArray(data.ads) ? data.ads.map((ad: any) => normalizeRenderedAd(ad, category)) : [];
 
-    const title = ad.subject ?? "Unknown";
-    const price = ad.p ?? 0;
-    const rooms = ad.rooms ?? null;
+    incMetric("adsFetched", ads.length);
 
-    const existing = await prisma.listing.findUnique({
-      where: { id },
-    });
+    for (const ad of ads) {
+      const id = String(ad.i);
+      const adCategory = ad.category ?? category ?? null;
 
-    const isNew = !existing;
-    const priceChanged = !!(existing && existing.price !== price);
+      currentIds.add(id);
 
-    // Ensure the listing row exists before writing any dependent rows (price history has FK).
-    await prisma.listing.upsert({
-      where: { id },
-      update: {
-        title,
-        price,
-        lastSeenAt: new Date(),
-        isActive: true,
-      },
-      create: {
-        id,
-        title,
-        price,
-        currency: "BYN",
-        url: `https://re.kufar.by/vi/${id}`,
-        location: `${ad.c?.[1]}, ${ad.c?.[0]}`,
-        source: "kufar",
-      },
-    });
+      const title = ad.subject ?? "Unknown";
+      const price = ad.p ?? 0;
+      const rooms = ad.rooms ?? null;
 
-    // history for new
-    if (isNew) {
-      incMetric("newListings");
-      await prisma.priceHistory.create({
-        data: {
-          listingId: id,
-          price,
-        },
+      const existing = await prisma.listing.findUnique({
+        where: { id },
       });
-    }
 
-    // price changed
-    if (priceChanged) {
-      incMetric("priceChanges");
-      logger.info({ id, oldPrice: existing.price, newPrice: price }, "Price changed");
+      const isNew = !existing;
+      const priceChanged = !!(existing && existing.price !== price);
 
-      await prisma.priceHistory.create({
-        data: {
-          listingId: id,
+      await prisma.listing.upsert({
+        where: { id },
+        update: {
+          title,
           price,
+          category: adCategory,
+          lastSeenAt: new Date(),
+          isActive: true,
+        },
+        create: {
+          id,
+          title,
+          price,
+          category: adCategory,
+          currency: "BYN",
+          url: `https://re.kufar.by/vi/${id}`,
+          location: `${ad.c?.[1]}, ${ad.c?.[0]}`,
+          source: "kufar",
         },
       });
 
-      // price drop alerts
-      if (price < existing.price) {
-        for (const user of users) {
-          const userMatch = matchesSubscription(user, ad) || matchesUserPrefs(user, ad);
+      if (isNew) {
+        incMetric("newListings");
+        logger.info({ id, category: adCategory, price }, "New listing");
+        await prisma.priceHistory.create({
+          data: {
+            listingId: id,
+            price,
+          },
+        });
+      }
 
-          if (userMatch) {
-            userAlerts[user.id].push(
-              `📉 Цена упала!\n${existing.price} → ${price}\nhttps://re.kufar.by/vi/${id}`
-            );
+      if (priceChanged) {
+        incMetric("priceChanges");
+        logger.info({ id, category: adCategory, oldPrice: existing.price, newPrice: price }, "Price changed");
+
+        await prisma.priceHistory.create({
+          data: {
+            listingId: id,
+            price,
+          },
+        });
+
+        if (price < existing.price) {
+          for (const user of users) {
+            const userMatch = matchesSubscription(user, ad) || matchesUserPrefs(user, ad);
+
+            if (userMatch) {
+              userAlerts[user.id].push(
+                `🔽 Цена упала!\n[${adCategory ?? "?"}] ${existing.price} → ${price}\nhttps://re.kufar.by/vi/${id}`
+              );
+            }
           }
         }
       }
-    }
 
-    // new ad alerts
-    for (const user of users) {
-      const userMatch = matchesSubscription(user, ad) || matchesUserPrefs(user, ad);
+      for (const user of users) {
+        const userMatch = matchesSubscription(user, ad) || matchesUserPrefs(user, ad);
 
-      if (isNew && userMatch) {
-        userAlerts[user.id].push(`🔥 ${price} | ${rooms ?? "?"}к\nhttps://re.kufar.by/vi/${id}`);
+        if (isNew && userMatch) {
+          userAlerts[user.id].push(`🔥 [${adCategory ?? "?"}] ${price} | ${rooms ?? "?"}к\nhttps://re.kufar.by/vi/${id}`);
+        }
       }
     }
   }
 
-  // deactivate missing
   const deactivated = await prisma.listing.updateMany({
     where: {
       id: {
@@ -297,8 +331,10 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
   });
 
   incMetric("deactivations", deactivated.count ?? 0);
+  if ((deactivated.count ?? 0) > 0) {
+    logger.info({ count: deactivated.count, categories: categoriesToSync }, "Listings deactivated");
+  }
 
-  // send Telegram alerts
   let notificationsSent = 0;
 
   for (const user of users) {
@@ -317,5 +353,5 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
 
   incMetric("alertsSent", notificationsSent);
 
-  return ads.length;
+  return currentIds.size;
 }

@@ -224,4 +224,55 @@ describe('Kufar sync', () => {
     expect(metrics.newListings).toBe(1);
     expect(metrics.alertsSent).toBe(1);
   });
+
+  it('does not match a subscription from another category', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'user-1', telegramChatId: '123', maxPrice: 100, rooms: [1] },
+    ]);
+    prismaMock.subscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-1',
+        userId: 'user-1',
+        category: '1050',
+        filters: { price_max: 300, rooms: [2] },
+        enabled: true,
+      },
+    ]);
+    prismaMock.listing.findUnique.mockResolvedValue(null);
+    prismaMock.listing.upsert.mockResolvedValue({ id: '1' });
+    prismaMock.priceHistory.create.mockResolvedValue({});
+    prismaMock.listing.updateMany.mockResolvedValue({ count: 0 });
+    sendTelegramMock.mockResolvedValue(true);
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({ ads: [] }),
+      },
+      {
+        ok: true,
+        json: async () => ({
+          ads: [
+            {
+              ad_id: 1,
+              subject: 'Test listing',
+              price_byn: '25000',
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const result = await saveKufarAds();
+
+    expect(result).toBe(1);
+    expect(sendTelegramMock).not.toHaveBeenCalled();
+    expect(metrics.adsFetched).toBe(1);
+    expect(metrics.newListings).toBe(1);
+    expect(metrics.alertsSent).toBe(0);
+  });
 });

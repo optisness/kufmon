@@ -15,6 +15,7 @@ model Listing {
   url      String  @unique
   location String?
   rooms    Int?
+  category String?
   source   String  @default("kufar")
   isActive Boolean @default(true)
 
@@ -51,6 +52,7 @@ model Subscription {
   id              String   @id @default(cuid())
   name            String
   userId          String?
+  category        String?
   filters         Json?
   intervalMinutes Int      @default(30)
   enabled         Boolean  @default(true)
