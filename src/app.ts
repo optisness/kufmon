@@ -580,7 +580,7 @@ function renderSubscriptionsPage(options: {
               <td>${options.subscriptionFiltersById.get(s.id)?.maxPrice != null ? `$${options.subscriptionFiltersById.get(s.id)?.maxPrice}` : "-"}</td>
               <td>${escapeHtml(formatRoomsList(options.subscriptionFiltersById.get(s.id)?.rooms))}</td>
               <td>${s.intervalMinutes} мин</td>
-              <td>
+              <td data-sort-value="${s.enabled ? 1 : 0}">
                 <form method="POST" action="/subscriptions/toggle" style="display:inline;">
                   <input type="hidden" name="id" value="${s.id}" />
                   <input type="hidden" name="returnTo" value="/ui/subscriptions" />
@@ -625,6 +625,7 @@ function renderListingsPage(options: {
             <th>Seller</th>
             <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="price">Цена</th>
             <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="rooms">Комнаты</th>
+            <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="missingCount">Неудачных попыток</th>
             <th>Ссылка</th>
             <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="active">Активно</th>
           </tr>
@@ -639,12 +640,13 @@ function renderListingsPage(options: {
               <td>${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td>${l.rooms ?? "-"}</td>
+              <td>${Number.isFinite(Number(l.missingCount)) ? Number(l.missingCount) : 0}</td>
               <td>
                 <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
                 <br/>
                 <a href="/history/${l.id}" target="_blank" style="color:#666; text-decoration:none; font-size:12px;">история</a>
               </td>
-              <td>${l.isActive ? "✅" : "❌"}</td>
+              <td data-sort-value="${l.isActive ? 1 : 0}">${l.isActive ? "Активно" : "Неактивно"}</td>
             </tr>
           `).join("")}
         </tbody>
