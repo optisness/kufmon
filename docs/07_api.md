@@ -16,6 +16,7 @@ Current implementation notes:
 
 - The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, the seller-type backfill endpoint, UI pages and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
 - The admin UI is split into separate pages: `/ui` for overview, `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings.
+- The admin tables now paginate with `page` and `limit` query parameters instead of rendering the full collection in a single scroll.
 - In the subscriptions table, the active-state toggle is shown as `Enabled` or `Disabled` so the current state is unambiguous.
 - The listings page sorts price using the normalized numeric value, so the `"$"` prefix shown in the table does not break sorting.
 - The listings page also shows the `missingCount` column, which represents consecutive failed sync attempts before a listing becomes `REMOVED`.
@@ -327,6 +328,8 @@ GET /sync
 
 Triggers a manual synchronization run and returns the number of ads processed.
 
+The synchronization run fetches Kufar search results in cursor-based pages. The first request asks for 100 rows, then the service follows the returned `cursor` token until no further page is available.
+
 Optional query parameters:
 
 - `cat` (string): Kufar category code override (e.g. `1010`, `1020`, `1080`, `1050`).
@@ -355,16 +358,15 @@ Optional query parameters:
 
 # Pagination
 
-Collections use:
+Collections use cursor pagination:
 
 ```
 
-limit
-offset
+cursor
 
 ```
 
-Future versions may migrate to cursor pagination.
+The requested page state lives only in the cursor token provided by the upstream API.
 
 ---
 

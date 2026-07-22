@@ -39,6 +39,7 @@ Examples:
 - AdComparer
 - NotificationBuilder
 - Admin table sorting helpers for users, subscriptions, and listings
+- Admin pagination helpers and page navigation
 
 No database required.
 
@@ -347,6 +348,7 @@ Verify:
 - validation
 - status codes
 - pagination
+- cursor pagination against Kufar search results
 - idempotency
 
 ---

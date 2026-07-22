@@ -29,6 +29,7 @@ export type KufarCategory = (typeof KUFAR_CATEGORIES)[keyof typeof KUFAR_CATEGOR
 function buildKufarSearchUrl(options?: {
   category?: string;
   currency?: string;
+  cursor?: string;
   gtsy?: string;
   language?: string;
   limit?: number;
@@ -44,7 +45,7 @@ function buildKufarSearchUrl(options?: {
   const currency = options?.currency ?? "USD";
   const gtsy = options?.gtsy ?? KUFAR_DEFAULT_GTSY;
   const language = options?.language ?? "ru";
-  const limit = options?.limit ?? 30;
+  const limit = options?.limit ?? 100;
   const type = options?.type ?? "sell";
 
   const params = new URLSearchParams({
@@ -59,6 +60,7 @@ function buildKufarSearchUrl(options?: {
   if (options?.regionCode != null) params.set("rgn", String(options.regionCode));
   if (options?.areaCode != null) params.set("ar", String(options.areaCode));
   if (options?.rooms) params.set("rms", options.rooms);
+  if (options?.cursor) params.set("cursor", options.cursor);
 
   return `https://api.kufar.by/search-api/v2/search/rendered-paginated?${params.toString()}`;
 }
@@ -114,6 +116,48 @@ async function resolveSyncCategories(options?: Parameters<typeof fetchKufarMap>[
   categories.add(process.env.KUFAR_CATEGORY ?? KUFAR_CATEGORIES.apartments);
 
   return Array.from(categories);
+}
+
+function extractNextCursor(data: any) {
+  const pages = Array.isArray(data?.pagination?.pages) ? data.pagination.pages : [];
+  const nextPage = pages.find((page: any) => page?.label === "next" && page?.token);
+  return typeof nextPage?.token === "string" && nextPage.token ? nextPage.token : null;
+}
+
+async function fetchKufarAdsPages(options: Parameters<typeof fetchKufarMap>[0], category: string) {
+  const fetchedAds: Array<{
+    id: string;
+    snapshot: ReturnType<typeof normalizeKufarListing>;
+  }> = [];
+
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+
+  for (;;) {
+    const requestOptions = { ...options, category, cursor } as Parameters<typeof fetchKufarMap>[0];
+    const data = await fetchKufarMap(requestOptions);
+    const ads = Array.isArray(data.ads) ? data.ads : [];
+
+    incMetric("adsFetched", ads.length);
+
+    for (const ad of ads) {
+      const id = String(ad?.ad_id ?? ad?.list_id ?? "");
+      if (!id) continue;
+
+      const snapshot = normalizeKufarListing(ad, category);
+      fetchedAds.push({ id, snapshot });
+    }
+
+    const nextCursor = extractNextCursor(data);
+    if (!nextCursor || seenCursors.has(nextCursor)) {
+      break;
+    }
+
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
+  }
+
+  return fetchedAds;
 }
 
 function matchesUserSubscriptions(
@@ -206,18 +250,11 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
   }> = [];
 
   for (const category of categoriesToSync) {
-    const data = await fetchKufarMap({ ...options, category });
-    const ads = Array.isArray(data.ads) ? data.ads : [];
+    const adsForCategory = await fetchKufarAdsPages(options, category);
 
-    incMetric("adsFetched", ads.length);
-
-    for (const ad of ads) {
-      const id = String(ad?.ad_id ?? ad?.list_id ?? "");
-      if (!id) continue;
-
-      const snapshot = normalizeKufarListing(ad, category);
-      currentIds.add(id);
-      fetchedAds.push({ id, snapshot });
+    for (const ad of adsForCategory) {
+      currentIds.add(ad.id);
+      fetchedAds.push(ad);
     }
   }
 

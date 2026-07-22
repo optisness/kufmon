@@ -10,6 +10,11 @@ import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } f
 import { formatEventSummary } from "./listingEvents.js";
 import { buildTelegramListingUrl } from "./telegramMessage.js";
 import { fetchKufarItem, parseSellerType } from "./kufarItem.js";
+import {
+  buildPaginationMeta,
+  buildPaginationUrl,
+  parsePositiveInt,
+} from "./adminPagination.js";
 
 const app = Fastify({
   logger,
@@ -33,6 +38,8 @@ function compareStrings(a: string, b: string) {
   return a.localeCompare(b, "ru", { sensitivity: "base", numeric: true });
 }
 
+const ADMIN_PAGE_SIZE = 50;
+
 const CATEGORY_LABEL_BY_VALUE: Record<string, string> = {
   [KUFAR_CATEGORIES.apartments]: "Квартира",
   [KUFAR_CATEGORIES.houses]: "Дом",
@@ -44,6 +51,35 @@ function parseOptionalNumber(value: any) {
   if (value == null || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function renderPaginationControls(options: {
+  basePath: string;
+  query: Record<string, unknown>;
+  meta: ReturnType<typeof buildPaginationMeta>;
+  itemLabel: string;
+}) {
+  if (options.meta.pageCount <= 1) return "";
+
+  const previousUrl = options.meta.hasPrevious
+    ? buildPaginationUrl(options.basePath, options.query, options.meta.page - 1, options.meta.pageSize)
+    : "#";
+  const nextUrl = options.meta.hasNext
+    ? buildPaginationUrl(options.basePath, options.query, options.meta.page + 1, options.meta.pageSize)
+    : "#";
+
+  return `
+    <div class="pagination">
+      <div class="pagination-summary">
+        Показаны ${options.meta.from}-${options.meta.to} из ${options.meta.totalItems} ${options.itemLabel}
+      </div>
+      <div class="pagination-links">
+        <a class="pagination-link${options.meta.hasPrevious ? "" : " disabled"}" href="${escapeHtml(previousUrl)}">← Предыдущая</a>
+        <span class="pagination-current">Страница ${options.meta.page} из ${options.meta.pageCount}</span>
+        <a class="pagination-link${options.meta.hasNext ? "" : " disabled"}" href="${escapeHtml(nextUrl)}">Следующая →</a>
+      </div>
+    </div>
+  `;
 }
 
 function parseRoomsSelection(value: any) {
@@ -243,6 +279,13 @@ function renderAdminLayout(options: {
     .page-card h3 { margin-top:0; }
     .page-card a { color:#007bff; text-decoration:none; }
     .page-card a:hover { text-decoration:underline; }
+    .pagination { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid #e6e6e6; flex-wrap:wrap; }
+    .pagination-summary { color:#666; font-size:14px; }
+    .pagination-links { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .pagination-link { display:inline-flex; align-items:center; justify-content:center; padding:8px 12px; border:1px solid #ddd; border-radius:6px; color:#007bff; text-decoration:none; background:#fff; }
+    .pagination-link:hover { background:#f5f9ff; }
+    .pagination-link.disabled { pointer-events:none; color:#999; background:#f7f7f7; }
+    .pagination-current { font-weight:bold; color:#333; }
   </style>
 </head>
 <body>
@@ -409,7 +452,12 @@ function renderOverviewPage() {
   });
 }
 
-function renderUsersPage(users: any[]) {
+function renderUsersPage(options: {
+  users: any[];
+  returnTo: string;
+  pagination: ReturnType<typeof buildPaginationMeta>;
+  query: Record<string, unknown>;
+}) {
   return renderAdminLayout({
     title: "Пользователи",
     activePath: "/ui/users",
@@ -418,7 +466,7 @@ function renderUsersPage(users: any[]) {
       <h2>Пользователи</h2>
       <h3>Создать пользователя</h3>
       <form method="POST" action="/users" class="compact-form" style="grid-template-columns: 1fr 1fr auto; align-items:end;">
-        <input type="hidden" name="returnTo" value="/ui/users" />
+        <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}" />
         <div class="form-group">
           <label>Имя / название пользователя</label>
           <input name="name" placeholder="Например, Иван или Агентство А" required />
@@ -441,7 +489,7 @@ function renderUsersPage(users: any[]) {
           </tr>
         </thead>
         <tbody>
-          ${users.map((u, index) => `
+          ${options.users.map((u, index) => `
             <tr>
               <td>${index + 1}</td>
               <td>${escapeHtml(u.name?.trim() || "-")}</td>
@@ -449,7 +497,7 @@ function renderUsersPage(users: any[]) {
               <td>
                 <form method="POST" action="/users/delete" onsubmit="return confirm('Удалить пользователя?')" style="display:inline;">
                   <input type="hidden" name="id" value="${u.id}" />
-                  <input type="hidden" name="returnTo" value="/ui/users" />
+                  <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}" />
                   <button type="submit" class="btn-danger" style="padding:5px 10px;">Удалить</button>
                 </form>
               </td>
@@ -457,6 +505,12 @@ function renderUsersPage(users: any[]) {
           `).join("")}
         </tbody>
       </table>
+      ${renderPaginationControls({
+        basePath: "/ui/users",
+        query: options.query,
+        meta: options.pagination,
+        itemLabel: "пользователей",
+      })}
     </div>
     `,
   });
@@ -465,11 +519,12 @@ function renderUsersPage(users: any[]) {
 function renderSubscriptionFormMarkup(options: {
   userOptions: string;
   categoryOptionMarkup: string;
+  returnTo: string;
 }) {
   return `
       <h3>Создать подписку</h3>
       <form method="POST" action="/subscriptions" class="compact-form subscriptions-form" style="max-width: 1200px;">
-        <input type="hidden" name="returnTo" value="/ui/subscriptions" />
+        <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}" />
         <div class="form-row" style="grid-template-columns: 1.2fr 1fr 0.8fr;">
           <div class="form-group">
             <label>Название подписки</label>
@@ -539,6 +594,9 @@ function renderSubscriptionsPage(options: {
   categoryLabelByValue: Record<string, string>;
   userOptions: string;
   categoryOptionMarkup: string;
+  returnTo: string;
+  pagination: ReturnType<typeof buildPaginationMeta>;
+  query: Record<string, unknown>;
 }) {
   return renderAdminLayout({
     title: "Подписки",
@@ -550,6 +608,7 @@ function renderSubscriptionsPage(options: {
       ${renderSubscriptionFormMarkup({
         userOptions: options.userOptions,
         categoryOptionMarkup: options.categoryOptionMarkup,
+        returnTo: options.returnTo,
       })}
 
       <h3>Существующие подписки</h3>
@@ -583,14 +642,14 @@ function renderSubscriptionsPage(options: {
               <td data-sort-value="${s.enabled ? 1 : 0}">
                 <form method="POST" action="/subscriptions/toggle" style="display:inline;">
                   <input type="hidden" name="id" value="${s.id}" />
-                  <input type="hidden" name="returnTo" value="/ui/subscriptions" />
+                  <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}" />
                   <button type="submit" class="${s.enabled ? "btn-success" : "btn-danger"}" style="padding:5px 10px;">${s.enabled ? "Enabled" : "Disabled"}</button>
                 </form>
               </td>
               <td>
                 <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')" style="display:inline;">
                   <input type="hidden" name="id" value="${s.id}" />
-                  <input type="hidden" name="returnTo" value="/ui/subscriptions" />
+                  <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}" />
                   <button type="submit" class="btn-danger" style="padding:5px 10px;">Удалить</button>
                 </form>
               </td>
@@ -599,6 +658,12 @@ function renderSubscriptionsPage(options: {
           `).join('')}
         </tbody>
       </table>
+      ${renderPaginationControls({
+        basePath: "/ui/subscriptions",
+        query: options.query,
+        meta: options.pagination,
+        itemLabel: "подписок",
+      })}
     </div>
     `,
   });
@@ -607,6 +672,8 @@ function renderSubscriptionsPage(options: {
 function renderListingsPage(options: {
   listings: any[];
   categoryLabelByValue: Record<string, string>;
+  pagination: ReturnType<typeof buildPaginationMeta>;
+  query: Record<string, unknown>;
 }) {
   return renderAdminLayout({
     title: "Объявления",
@@ -614,7 +681,7 @@ function renderListingsPage(options: {
     body: `
     <div class="section">
       <h2>Объявления</h2>
-      <p>Последние 50 объявлений</p>
+      <p>Пагинированный список объявлений.</p>
       <table data-sort-table="listings">
         <thead>
           <tr>
@@ -653,6 +720,12 @@ function renderListingsPage(options: {
           `).join("")}
         </tbody>
       </table>
+      ${renderPaginationControls({
+        basePath: "/ui/listings",
+        query: options.query,
+        meta: options.pagination,
+        itemLabel: "объявлений",
+      })}
     </div>
     `,
   });
@@ -772,18 +845,42 @@ app.get("/ui", async (_req, reply) => {
   reply.type("text/html; charset=utf-8").send(renderOverviewPage());
 });
 
-app.get("/ui/users", async (_req, reply) => {
+app.get("/ui/users", async (req: any, reply) => {
   await cleanupStaleListings();
-  const users = sortUsers(await prisma.user.findMany());
-  reply.type("text/html; charset=utf-8").send(renderUsersPage(users));
+  const page = parsePositiveInt(req.query?.page, 1);
+  const totalItems = await prisma.user.count();
+  const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
+  const users = sortUsers(await prisma.user.findMany({
+    skip: pagination.offset,
+    take: pagination.pageSize,
+    orderBy: [
+      { name: "asc" },
+      { telegramChatId: "asc" },
+    ],
+  }));
+  const returnTo = buildPaginationUrl("/ui/users", req.query ?? {}, pagination.page, pagination.pageSize);
+
+  reply.type("text/html; charset=utf-8").send(renderUsersPage({
+    users,
+    returnTo,
+    pagination,
+    query: req.query ?? {},
+  }));
 });
 
-app.get("/ui/subscriptions", async (_req, reply) => {
+app.get("/ui/subscriptions", async (req: any, reply) => {
   await cleanupStaleListings();
+  const page = parsePositiveInt(req.query?.page, 1);
   const users = sortUsers(await prisma.user.findMany());
   const usersById = new Map(users.map((user) => [user.id, user]));
+  const totalItems = await prisma.subscription.count();
+  const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
   const subscriptions = sortSubscriptions(
-    await prisma.subscription.findMany({ take: 50, orderBy: { createdAt: "desc" } }),
+    await prisma.subscription.findMany({
+      skip: pagination.offset,
+      take: pagination.pageSize,
+      orderBy: { createdAt: "desc" },
+    }),
     usersById,
   );
   const subscriptionFiltersById = new Map(
@@ -817,14 +914,28 @@ app.get("/ui/subscriptions", async (_req, reply) => {
     categoryLabelByValue,
     userOptions,
     categoryOptionMarkup,
+    returnTo: buildPaginationUrl("/ui/subscriptions", req.query ?? {}, pagination.page, pagination.pageSize),
+    pagination,
+    query: req.query ?? {},
   }));
 });
 
-app.get("/ui/listings", async (_req, reply) => {
+app.get("/ui/listings", async (req: any, reply) => {
   await cleanupStaleListings();
+  const page = parsePositiveInt(req.query?.page, 1);
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const totalItems = await prisma.listing.count({
+    where: {
+      OR: [
+        { isActive: true },
+        { lastSeenAt: { gte: cutoff } },
+      ],
+    },
+  });
+  const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
   const listings = await prisma.listing.findMany({
-    take: 50,
+    skip: pagination.offset,
+    take: pagination.pageSize,
     where: {
       OR: [
         { isActive: true },
@@ -843,7 +954,12 @@ app.get("/ui/listings", async (_req, reply) => {
     categoryOptions.map((option) => [option.value, option.label]),
   );
 
-  reply.type("text/html; charset=utf-8").send(renderListingsPage({ listings, categoryLabelByValue }));
+  reply.type("text/html; charset=utf-8").send(renderListingsPage({
+    listings,
+    categoryLabelByValue,
+    pagination,
+    query: req.query ?? {},
+  }));
 });
 
 app.get("/backfill-seller-types", async (req: any) => {

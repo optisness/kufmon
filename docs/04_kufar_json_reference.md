@@ -173,6 +173,8 @@ Common real-estate categories used by this service:
 
 The synchronization pipeline uses `price_usd` as the primary displayed price field.
 
+The `pagination.pages` array exposes cursor tokens for the next and previous pages. The sync service follows the `next` token until pagination ends.
+
 ---
 
 # Transaction Type

@@ -104,6 +104,12 @@ describe('Kufar sync', () => {
     expect(decodeURIComponent(url)).toContain('gtsy=country-belarus~province-grodnenskaja_oblast~locality-grodno');
   });
 
+  it('defaults to fetching 100 rows per Kufar page', () => {
+    const url = buildKufarSearchUrl();
+
+    expect(url).toContain('size=100');
+  });
+
   it('creates a new listing and sends a notification for new matching ads', async () => {
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'user-1', telegramChatId: '123' },
@@ -167,6 +173,82 @@ describe('Kufar sync', () => {
     expect(metrics.newListings).toBe(1);
     expect(metrics.alertsSent).toBe(1);
     expect(metrics.deactivations).toBe(0);
+  });
+
+  it('follows Kufar cursor pagination and collects ads from the next page', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'user-1', telegramChatId: '123' },
+    ]);
+    prismaMock.subscription.findMany.mockResolvedValue([]);
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prismaMock.listing.create.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
+    sendTelegramMock.mockResolvedValue(true);
+
+    const fetchMock = installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          ads: [
+            {
+              ad_id: 1,
+              subject: 'First page listing',
+              price_usd: '40000',
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
+              body_short: 'First page',
+              images: [{ path: 'adim1/example.jpg' }],
+            },
+          ],
+          pagination: {
+            pages: [
+              { label: 'self', num: 1, token: null },
+              { label: 'next', num: 2, token: 'cursor-page-2' },
+            ],
+          },
+          total: 2,
+        }),
+      },
+      {
+        ok: true,
+        json: async () => ({
+          ads: [
+            {
+              ad_id: 2,
+              subject: 'Second page listing',
+              price_usd: '50000',
+              ad_parameters: [
+                { p: 'rooms', v: '3' },
+                { p: 'coordinates', v: [27.6, 53.8] },
+              ],
+              body_short: 'Second page',
+              images: [{ path: 'adim1/example-2.jpg' }],
+            },
+          ],
+          pagination: {
+            pages: [
+              { label: 'prev', num: 1, token: 'cursor-page-1' },
+              { label: 'self', num: 2, token: null },
+            ],
+          },
+          total: 2,
+        }),
+      },
+    ]);
+
+    const result = await saveKufarAds();
+
+    expect(result).toBe(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1]?.[0] ?? '')).toContain('cursor=cursor-page-2');
+    expect(prismaMock.listing.create).toHaveBeenCalledTimes(2);
+    expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(2);
+    expect(metrics.adsFetched).toBe(2);
+    expect(metrics.newListings).toBe(2);
   });
 
   it('records a price change and sends an alert when listing price drops', async () => {
