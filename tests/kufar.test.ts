@@ -459,6 +459,69 @@ describe('Kufar sync', () => {
     expect(metrics.deactivations).toBe(0);
   });
 
+  it('does not emit a removed event before the third missing check', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'user-1', telegramChatId: '123' },
+    ]);
+    prismaMock.subscription.findMany.mockResolvedValue([]);
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([
+        {
+          id: '1',
+          title: 'Test listing',
+          price: 400,
+          description: 'Stable description',
+          imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg',
+          rooms: 2,
+          category: '1010',
+          url: 'https://re.kufar.by/vi/1',
+          location: null,
+          source: 'kufar',
+          contentHash: 'same',
+          missingCount: 1,
+          isActive: true,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: '1',
+          title: 'Test listing',
+          price: 400,
+          description: 'Stable description',
+          imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg',
+          rooms: 2,
+          category: '1010',
+          url: 'https://re.kufar.by/vi/1',
+          location: null,
+          source: 'kufar',
+          contentHash: 'same',
+          missingCount: 1,
+          isActive: true,
+        },
+      ]);
+    prismaMock.listing.update.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
+    sendTelegramMock.mockResolvedValue(true);
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          ads: [],
+        }),
+      },
+    ]);
+
+    const result = await saveKufarAds();
+
+    expect(result).toBe(0);
+    expect(prismaMock.listing.update).toHaveBeenCalledTimes(1);
+    expect(prismaMock.adEvent.create).not.toHaveBeenCalled();
+    expect(sendTelegramMock).not.toHaveBeenCalled();
+    expect(metrics.deactivations).toBe(0);
+    expect(metrics.alertsSent).toBe(0);
+  });
+
   it('matches listings by subscription fields and category', () => {
     expect(
       matchesSubscriptionListing(
