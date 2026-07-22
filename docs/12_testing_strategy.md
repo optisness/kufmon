@@ -38,6 +38,7 @@ Examples:
 - KufarMapper
 - AdComparer
 - NotificationBuilder
+- Admin table sorting helpers for users, subscriptions, and listings
 
 No database required.
 

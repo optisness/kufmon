@@ -34,10 +34,10 @@ function compareStrings(a: string, b: string) {
 }
 
 const CATEGORY_LABEL_BY_VALUE: Record<string, string> = {
-  [KUFAR_CATEGORIES.apartments]: "Квартиры (1010)",
-  [KUFAR_CATEGORIES.houses]: "Дома (1020)",
-  [KUFAR_CATEGORIES.commercial]: "Коммерция (1050)",
-  [KUFAR_CATEGORIES.land]: "Земля (1080)",
+  [KUFAR_CATEGORIES.apartments]: "Квартира",
+  [KUFAR_CATEGORIES.houses]: "Дом",
+  [KUFAR_CATEGORIES.commercial]: "Коммерция",
+  [KUFAR_CATEGORIES.land]: "Участок",
 };
 
 function parseOptionalNumber(value: any) {
@@ -575,7 +575,7 @@ function renderSubscriptionsPage(options: {
               <td>${index + 1}</td>
               <td>${escapeHtml(s.name)}</td>
               <td>${escapeHtml(s.userId ? getUserDisplayName(options.usersById.get(s.userId)) : "-")}</td>
-              <td>${escapeHtml(s.category ? `${s.category} ${options.categoryLabelByValue[s.category] ? `(${options.categoryLabelByValue[s.category]})` : ""}` : "-")}</td>
+              <td>${escapeHtml(s.category ? (options.categoryLabelByValue[s.category] ?? "-") : "-")}</td>
               <td>${escapeHtml(s.sellerTypeFilter === "private" ? "Только физлица" : "Все")}</td>
               <td>${options.subscriptionFiltersById.get(s.id)?.maxPrice != null ? `$${options.subscriptionFiltersById.get(s.id)?.maxPrice}` : "-"}</td>
               <td>${escapeHtml(formatRoomsList(options.subscriptionFiltersById.get(s.id)?.rooms))}</td>
@@ -636,7 +636,7 @@ function renderListingsPage(options: {
               <td>${index + 1}</td>
               <td style="font-size:11px;">${l.id}</td>
               <td>${escapeHtml(l.title)}</td>
-              <td>${escapeHtml(l.category ? `${l.category} ${options.categoryLabelByValue[l.category] ? `(${options.categoryLabelByValue[l.category]})` : ""}` : "-")}</td>
+              <td>${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</td>
               <td>${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td>${l.rooms ?? "-"}</td>
@@ -646,7 +646,9 @@ function renderListingsPage(options: {
                 <br/>
                 <a href="/history/${l.id}" target="_blank" style="color:#666; text-decoration:none; font-size:12px;">история</a>
               </td>
-              <td data-sort-value="${l.isActive ? 1 : 0}">${l.isActive ? "Активно" : "Неактивно"}</td>
+              <td data-sort-value="${l.isActive ? 1 : 0}">
+                <span style="color:${l.isActive ? "#28a745" : "#dc3545"}; font-weight:bold;">${l.isActive ? "+" : "×"}</span>
+              </td>
             </tr>
           `).join("")}
         </tbody>
@@ -788,10 +790,10 @@ app.get("/ui/subscriptions", async (_req, reply) => {
     subscriptions.map((subscription) => [subscription.id, getSubscriptionFilters(subscription)]),
   );
   const categoryOptions = [
-    { value: KUFAR_CATEGORIES.apartments, label: "Квартиры (1010)" },
-    { value: KUFAR_CATEGORIES.houses, label: "Дома (1020)" },
-    { value: KUFAR_CATEGORIES.commercial, label: "Коммерция (1050)" },
-    { value: KUFAR_CATEGORIES.land, label: "Земля (1080)" },
+    { value: KUFAR_CATEGORIES.apartments, label: "Квартира" },
+    { value: KUFAR_CATEGORIES.houses, label: "Дом" },
+    { value: KUFAR_CATEGORIES.commercial, label: "Коммерция" },
+    { value: KUFAR_CATEGORIES.land, label: "Участок" },
   ];
   const categoryLabelByValue = Object.fromEntries(
     categoryOptions.map((option) => [option.value, option.label]),
@@ -832,10 +834,10 @@ app.get("/ui/listings", async (_req, reply) => {
     orderBy: { createdAt: "desc" },
   });
   const categoryOptions = [
-    { value: KUFAR_CATEGORIES.apartments, label: "Квартиры (1010)" },
-    { value: KUFAR_CATEGORIES.houses, label: "Дома (1020)" },
-    { value: KUFAR_CATEGORIES.commercial, label: "Коммерция (1050)" },
-    { value: KUFAR_CATEGORIES.land, label: "Земля (1080)" },
+    { value: KUFAR_CATEGORIES.apartments, label: "Квартира" },
+    { value: KUFAR_CATEGORIES.houses, label: "Дом" },
+    { value: KUFAR_CATEGORIES.commercial, label: "Коммерция" },
+    { value: KUFAR_CATEGORIES.land, label: "Участок" },
   ];
   const categoryLabelByValue = Object.fromEntries(
     categoryOptions.map((option) => [option.value, option.label]),

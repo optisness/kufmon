@@ -18,6 +18,7 @@ Current implementation notes:
 - The admin UI is split into separate pages: `/ui` for overview, `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings.
 - In the subscriptions table, the active-state toggle is shown as `Enabled` or `Disabled` so the current state is unambiguous.
 - The listings page sorts price using the normalized numeric value, so the `"$"` prefix shown in the table does not break sorting.
+- The listings page also shows the `missingCount` column, which represents consecutive failed sync attempts before a listing becomes `REMOVED`.
 
 Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.
 
@@ -74,7 +75,7 @@ Request:
 
 A subscription owns optional filter criteria and is attached to a single user. The implementation keeps the UI simple by splitting the common filters into separate `maxPrice` and `rooms` fields instead of a raw JSON editor.
 
-In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name. The `category` field stores the Kufar category code used for the search, such as `1010`, `1020`, `1050`, or `1080`. The `sellerTypeFilter` field supports `all` and `private`, so a subscription can receive either every matching listing or only private sellers. After creation, the service sends the user a Telegram backfill containing matching active listings from the last subscription interval.
+In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name. The `category` field stores the Kufar category code used for the search, while the UI shows one-word labels such as `Квартира`, `Дом`, `Коммерция`, and `Участок`. The `sellerTypeFilter` field supports `all` and `private`, so a subscription can receive either every matching listing or only private sellers. After creation, the service sends the user a Telegram backfill containing matching active listings from the last subscription interval.
 
 The subscription creation form is compacted into two visual rows in the admin UI: the first row contains name, user, and interval; the second row contains category, seller type, max price, rooms, and submit.
 
