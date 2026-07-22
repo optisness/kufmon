@@ -111,6 +111,7 @@ describe('Kufar sync', () => {
     prismaMock.subscription.findMany.mockResolvedValue([
       {
         id: 'sub-1',
+        name: 'Minsk 2 rooms',
         userId: 'user-1',
         maxPrice: 500,
         rooms: [2],
@@ -152,6 +153,7 @@ describe('Kufar sync', () => {
     expect(prismaMock.listing.create).toHaveBeenCalledTimes(1);
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
+    expect(message).toContain('Подписка: Minsk 2 rooms');
     expect(message).toContain('🆕 Новые');
     expect(message).toContain('🏢 <b>Test listing</b>');
     expect(message).toContain('Test listing');
@@ -171,6 +173,7 @@ describe('Kufar sync', () => {
     prismaMock.subscription.findMany.mockResolvedValue([
       {
         id: 'sub-1',
+        name: 'Minsk 2 rooms',
         userId: 'user-1',
         maxPrice: 500,
         rooms: [2],
@@ -214,6 +217,7 @@ describe('Kufar sync', () => {
     expect(prismaMock.listing.update).toHaveBeenCalledTimes(1);
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
+    expect(message).toContain('Подписка: Minsk 2 rooms');
     expect(message).toContain('♻️ Измененные');
     expect(message).toContain('Test listing');
     expect(message).toContain('Цена: <b>$500</b>');
@@ -287,6 +291,7 @@ describe('Kufar sync', () => {
     prismaMock.subscription.findMany.mockResolvedValue([
       {
         id: 'sub-1',
+        name: 'Minsk 2 rooms',
         userId: 'user-1',
         maxPrice: 300,
         rooms: [2],
@@ -338,6 +343,7 @@ describe('Kufar sync', () => {
     prismaMock.subscription.findMany.mockResolvedValue([
       {
         id: 'sub-1',
+        name: 'Minsk 2 rooms',
         userId: 'user-1',
         category: '1050',
         maxPrice: 300,
@@ -392,6 +398,7 @@ describe('Kufar sync', () => {
     prismaMock.subscription.findMany.mockResolvedValue([
       {
         id: 'sub-1',
+        name: 'Private only',
         userId: 'user-1',
         category: '1010',
         sellerTypeFilter: 'private',

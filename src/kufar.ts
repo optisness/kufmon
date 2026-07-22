@@ -132,6 +132,25 @@ function matchesUserSubscriptions(
   );
 }
 
+function getMatchingSubscriptionNames(
+  subscriptionsByUser: Record<string, any[]>,
+  userId: string,
+  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null },
+) {
+  const userSubs = subscriptionsByUser[userId] || [];
+  return userSubs
+    .filter((subscription) =>
+      matchesSubscriptionListing(subscription, {
+        price: ad.price,
+        rooms: ad.rooms,
+        category: ad.category,
+        sellerType: ad.sellerType,
+      }),
+    )
+    .map((subscription) => String(subscription.name ?? "").trim())
+    .filter((name) => Boolean(name));
+}
+
 function normalizeSellerType(value: unknown): "company" | "private" | null {
   if (value === "company" || value === "private") {
     return value;
@@ -157,6 +176,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     rooms: number | null;
     price: number;
     url: string;
+    subscriptionName?: string;
     changes?: Array<{
       field: "price" | "description" | "imageUrl" | "rooms";
       old: string | number | null;
@@ -266,20 +286,21 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
 
         for (const user of users) {
           const sellerType = normalizeSellerType(ad.snapshot.sellerType);
-          if (
-            matchesUserSubscriptions(subscriptionsByUser, user.id, {
-              price: ad.snapshot.price,
-              rooms: ad.snapshot.rooms,
-              category: ad.snapshot.category,
-              sellerType,
-            })
-          ) {
+          const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
+            price: ad.snapshot.price,
+            rooms: ad.snapshot.rooms,
+            category: ad.snapshot.category,
+            sellerType,
+          });
+
+          if (subscriptionNames.length > 0) {
             userAlerts[user.id].NEW.push({
               category: ad.snapshot.category,
               title: ad.snapshot.title,
               rooms: ad.snapshot.rooms,
               price: ad.snapshot.price,
               url: ad.snapshot.url,
+              subscriptionName: subscriptionNames.join(", "),
             });
           }
         }
@@ -308,20 +329,21 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
         });
 
         for (const user of users) {
-          if (
-            matchesUserSubscriptions(subscriptionsByUser, user.id, {
-              price: ad.snapshot.price,
-              rooms: ad.snapshot.rooms,
-              category: ad.snapshot.category,
-              sellerType: ad.snapshot.sellerType,
-            })
-          ) {
+          const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
+            price: ad.snapshot.price,
+            rooms: ad.snapshot.rooms,
+            category: ad.snapshot.category,
+            sellerType: ad.snapshot.sellerType,
+          });
+
+          if (subscriptionNames.length > 0) {
             userAlerts[user.id].NEW.push({
               category: ad.snapshot.category,
               title: ad.snapshot.title,
               rooms: ad.snapshot.rooms,
               price: ad.snapshot.price,
               url: ad.snapshot.url,
+              subscriptionName: subscriptionNames.join(", "),
             });
           }
         }
@@ -372,20 +394,21 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
         });
 
         for (const user of users) {
-          if (
-            matchesUserSubscriptions(subscriptionsByUser, user.id, {
-              price: ad.snapshot.price,
-              rooms: ad.snapshot.rooms,
-              category: ad.snapshot.category,
-              sellerType: ad.snapshot.sellerType,
-            })
-          ) {
+          const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
+            price: ad.snapshot.price,
+            rooms: ad.snapshot.rooms,
+            category: ad.snapshot.category,
+            sellerType: ad.snapshot.sellerType,
+          });
+
+          if (subscriptionNames.length > 0) {
             userAlerts[user.id].CHANGED.push({
               category: ad.snapshot.category,
               title: ad.snapshot.title,
               rooms: ad.snapshot.rooms,
               price: ad.snapshot.price,
               url: ad.snapshot.url,
+              subscriptionName: subscriptionNames.join(", "),
               changes,
             });
           }
@@ -437,20 +460,21 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
 
         for (const user of users) {
           const sellerType = normalizeSellerType(listing.sellerType);
-          if (
-            matchesUserSubscriptions(subscriptionsByUser, user.id, {
-              price: listing.price,
-              rooms: listing.rooms ?? null,
-              category: listing.category ?? null,
-              sellerType,
-            })
-          ) {
+          const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
+            price: listing.price,
+            rooms: listing.rooms ?? null,
+            category: listing.category ?? null,
+            sellerType,
+          });
+
+          if (subscriptionNames.length > 0) {
             userAlerts[user.id].REMOVED.push({
               category: listing.category ?? null,
               title: listing.title,
               rooms: listing.rooms ?? null,
               price: listing.price,
               url: listing.url,
+              subscriptionName: subscriptionNames.join(", "),
             });
           }
         }

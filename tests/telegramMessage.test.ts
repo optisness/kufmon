@@ -38,6 +38,7 @@ describe("telegramMessage", () => {
         rooms: 2,
         price: 167770.8,
         url: "https://re.kufar.by/vi/1059448809",
+        subscriptionName: "Minsk 2 rooms",
       },
       {
         eventType: "CHANGED",
@@ -65,6 +66,7 @@ describe("telegramMessage", () => {
     expect(message).toContain("🆕 Новые");
     expect(message).toContain("♻️ Измененные");
     expect(message).toContain("🗑 Удаленные");
+    expect(message).toContain("Подписка: Minsk 2 rooms");
     expect(message).toContain("🏢 <b>Apartment listing</b>");
     expect(message).toContain("🏭 <b>Office space</b>");
     expect(message).toContain("🌾 <b>Plot listing</b>");

@@ -10,6 +10,7 @@ type ListingAlert = {
 
 type ListingEventAlert = ListingAlert & {
   eventType: TelegramEventType;
+  subscriptionName?: string;
   changes?: Array<{
     field: "price" | "description" | "imageUrl" | "rooms";
     old: string | number | null;
@@ -158,7 +159,18 @@ export function formatTelegramBatchMessage(items: ListingEventAlert[]) {
     grouped[item.eventType].push(item);
   }
 
-  return (Object.keys(grouped) as TelegramEventType[])
+  const subscriptionNames = Array.from(
+    new Set(
+      items
+        .map((item) => item.subscriptionName?.trim())
+        .filter((name): name is string => Boolean(name)),
+    ),
+  );
+  const subscriptionHeader = subscriptionNames.length > 0
+    ? `${subscriptionNames.length === 1 ? "Подписка" : "Подписки"}: ${subscriptionNames.join(", ")}`
+    : null;
+
+  const sections = (Object.keys(grouped) as TelegramEventType[])
     .map((eventType) => {
       const cards = grouped[eventType];
       if (cards.length === 0) return null;
@@ -166,4 +178,6 @@ export function formatTelegramBatchMessage(items: ListingEventAlert[]) {
     })
     .filter(Boolean)
     .join("\n\n");
+
+  return [subscriptionHeader, sections].filter(Boolean).join("\n\n");
 }
