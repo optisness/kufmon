@@ -433,6 +433,5 @@ Possible additions:
 
 - notification batching;
 - AI-generated summaries;
-- price history charts;
 - weekly digests;
 - personalized recommendations.
