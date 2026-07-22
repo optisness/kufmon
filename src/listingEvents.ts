@@ -19,6 +19,8 @@ export type ListingChange = {
   new: string | number | null;
 };
 
+const MIN_PRICE_CHANGE_USD = 50;
+
 function normalizeText(value: any) {
   if (value == null) return null;
   const text = String(value).trim();
@@ -89,6 +91,14 @@ export function diffListingSnapshots(previous: Pick<ListingSnapshot, "price" | "
   const fields: ListingChangeField[] = ["price", "description", "imageUrl", "rooms"];
 
   for (const field of fields) {
+    if (field === "price") {
+      const previousPrice = Number(previous.price);
+      const nextPrice = Number(next.price);
+      if (Number.isFinite(previousPrice) && Number.isFinite(nextPrice) && Math.abs(previousPrice - nextPrice) < MIN_PRICE_CHANGE_USD) {
+        continue;
+      }
+    }
+
     if (previous[field] !== next[field]) {
       changes.push({
         field,

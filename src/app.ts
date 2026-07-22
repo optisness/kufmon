@@ -515,7 +515,7 @@ app.get("/ui", async (req, reply) => {
             <td style="font-size:11px;">${l.id}</td>
             <td>${escapeHtml(l.title)}</td>
             <td>${escapeHtml(l.category ? `${l.category} ${categoryLabelByValue[l.category] ? `(${categoryLabelByValue[l.category]})` : ""}` : "-")}</td>
-            <td class="price">$${l.price}</td>
+            <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
             <td>${l.rooms ?? "-"}</td>
             <td>
               <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
@@ -546,8 +546,19 @@ app.get("/ui", async (req, reply) => {
       return text.toLocaleLowerCase("ru");
     }
 
+    function getSortValue(cell, type) {
+      if (!cell) return type === "number" ? Number.NEGATIVE_INFINITY : "";
+
+      if (cell.dataset && cell.dataset.sortValue != null) {
+        return normalizeSortValue(cell.dataset.sortValue, type);
+      }
+
+      return normalizeSortValue(cell.textContent, type);
+    }
+
     function renumberTable(table) {
-      const rows = Array.from(table.querySelectorAll("tr")).slice(1);
+      const body = table.tBodies[0] || table;
+      const rows = Array.from(body.rows || body.querySelectorAll("tr"));
       rows.forEach((row, index) => {
         const firstCell = row.cells[0];
         if (firstCell) {
@@ -575,12 +586,13 @@ app.get("/ui", async (req, reply) => {
       });
       th.dataset.sortDir = nextDir;
 
-      const bodyRows = Array.from(table.querySelectorAll("tr")).slice(1);
+      const body = table.tBodies[0] || table.createTBody();
+      const bodyRows = Array.from(body.rows);
       const sortedRows = bodyRows.sort((left, right) => {
         const leftCell = left.cells[index];
         const rightCell = right.cells[index];
-        const leftValue = normalizeSortValue(leftCell ? leftCell.textContent : "", type);
-        const rightValue = normalizeSortValue(rightCell ? rightCell.textContent : "", type);
+        const leftValue = getSortValue(leftCell, type);
+        const rightValue = getSortValue(rightCell, type);
 
         if (leftValue < rightValue) return nextDir === "asc" ? -1 : 1;
         if (leftValue > rightValue) return nextDir === "asc" ? 1 : -1;
