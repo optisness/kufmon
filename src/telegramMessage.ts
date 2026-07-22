@@ -20,17 +20,24 @@ type ListingEventAlert = ListingAlert & {
 
 type CategoryPresentation = {
   icon: string;
-  accent: string;
-  label: string;
-  urlSegment: string;
+  urlPath: string;
 };
 
 const CATEGORY_PRESENTATION: Record<string, CategoryPresentation> = {
-  "1010": { icon: "🏢", accent: "🔵", label: "Квартира", urlSegment: "kvartiru" },
-  "1020": { icon: "🏠", accent: "🟢", label: "Дом", urlSegment: "dom" },
-  "1050": { icon: "🏭", accent: "🟠", label: "Коммерческая", urlSegment: "kommercheskuyu" },
-  "1080": { icon: "🌾", accent: "🟤", label: "Участок", urlSegment: "listing" },
+  "1010": { icon: "🏢", urlPath: "kupit/kvartiru" },
+  "1020": { icon: "🏠", urlPath: "kupit/dom" },
+  "1050": { icon: "🏭", urlPath: "kupit/kommercheskaya/magaziny" },
+  "1080": { icon: "🌾", urlPath: "kupit/uchastok" },
 };
+
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function getCategoryPresentation(category: string | null): CategoryPresentation {
   if (category && CATEGORY_PRESENTATION[category]) {
@@ -39,25 +46,23 @@ function getCategoryPresentation(category: string | null): CategoryPresentation 
 
   return {
     icon: "📌",
-    accent: "⚪",
-    label: "Объявление",
-    urlSegment: "listing",
+    urlPath: "kupit/listing",
   };
 }
 
-function formatValue(value: string | number | null) {
+function formatText(value: string | number | null) {
   if (value == null || value === "") return "—";
-  return String(value);
+  return escapeHtml(value);
 }
 
 function formatPrice(value: string | number | null) {
   if (value == null || value === "") return "—";
-  return `$${String(value)}`;
+  return `<b>$${escapeHtml(value)}</b>`;
 }
 
 function formatRooms(rooms: number | null) {
   if (rooms == null || !Number.isFinite(Number(rooms))) return "?к";
-  return `${rooms}к`;
+  return `${escapeHtml(rooms)}к`;
 }
 
 function parseAdId(url: string) {
@@ -71,7 +76,7 @@ export function buildTelegramListingUrl(listing: {
   citySlug?: string;
 }) {
   const existing = listing.url.trim();
-  if (/^https?:\/\/re\.kufar\.by\/vi\/[^/]+\/[^/]+\/\d+$/i.test(existing)) {
+  if (/^https?:\/\/re\.kufar\.by\/vi\/[^/]+\/kupit\/.+\/\d+$/i.test(existing)) {
     return existing;
   }
 
@@ -80,7 +85,7 @@ export function buildTelegramListingUrl(listing: {
 
   const citySlug = listing.citySlug?.trim() || "grodno";
   const category = getCategoryPresentation(listing.category);
-  return `https://re.kufar.by/vi/${citySlug}/obmen/${category.urlSegment}/${id}`;
+  return `https://re.kufar.by/vi/${citySlug}/${category.urlPath}/${id}`;
 }
 
 function formatChanges(changes: ListingEventAlert["changes"]) {
@@ -104,7 +109,7 @@ function formatChanges(changes: ListingEventAlert["changes"]) {
     }
 
     if (change.field === "rooms") {
-      return `комнаты ${formatValue(change.old)} → ${formatValue(change.new)}`;
+      return `комнаты ${formatText(change.old)} → ${formatText(change.new)}`;
     }
 
     return `${change.field} изменено`;
@@ -115,12 +120,11 @@ function formatChanges(changes: ListingEventAlert["changes"]) {
 
 function formatListingCard(alert: ListingEventAlert) {
   const category = getCategoryPresentation(alert.category);
-  const title = alert.title.trim() || "Без названия";
+  const title = escapeHtml(alert.title.trim() || "Без названия");
   const lines = [
-    `${category.icon} ${category.accent} ${category.label}`,
-    title,
-    `Комнат: ${formatRooms(alert.rooms)}`,
+    `${category.icon} <b>${title}</b>`,
     `Цена: ${formatPrice(alert.price)}`,
+    `Комнат: ${formatRooms(alert.rooms)}`,
   ];
 
   const changesLine = formatChanges(alert.changes);
@@ -128,11 +132,11 @@ function formatListingCard(alert: ListingEventAlert) {
     lines.push(changesLine);
   }
 
-  lines.push(buildTelegramListingUrl({
+  lines.push(`Ссылка: <a href="${escapeHtml(buildTelegramListingUrl({
     url: alert.url,
     category: alert.category,
     citySlug: alert.citySlug,
-  }));
+  }))}">Куфар</a>`);
 
   return lines.join("\n");
 }

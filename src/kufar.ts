@@ -470,7 +470,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     const chunks = text.match(/[\s\S]{1,3500}/g) || [];
 
     for (const chunk of chunks) {
-      const ok = await sendTelegram(chunk, user.telegramChatId);
+      const ok = await sendTelegram(chunk, user.telegramChatId, { parseMode: "HTML" });
       if (ok) notificationsSent += 1;
     }
   }

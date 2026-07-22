@@ -251,7 +251,8 @@ Builder performs no database access.
 # Message Templates
 
 Telegram notifications are sent as grouped blocks in the order `NEW`, `CHANGED`, `REMOVED`.
-Each listing card starts with a category-specific icon and accent, then shows the title, room count, current price, optional change summary, and a canonical Kufar page link.
+Each listing card starts with a category-specific icon, then shows the title in bold, the current price first, the room count second, optional change summary, and a canonical Kufar page link.
+The current template keeps the text black and does not use colored category labels or accents.
 For `rooms`, the subscription filter supports the special `5+` value, which matches any listing with five or more rooms.
 
 ## NEW
@@ -264,7 +265,7 @@ Contains:
 - rooms
 - location
 - link
-- category icon and label
+- category icon
 
 ---
 

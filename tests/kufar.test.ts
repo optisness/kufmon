@@ -153,11 +153,11 @@ describe('Kufar sync', () => {
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
     expect(message).toContain('🆕 Новые');
-    expect(message).toContain('🏢 🔵 Квартира');
+    expect(message).toContain('🏢 <b>Test listing</b>');
     expect(message).toContain('Test listing');
+    expect(message).toContain('Цена: <b>$400</b>');
     expect(message).toContain('Комнат: 2к');
-    expect(message).toContain('Цена: $400');
-    expect(message).toContain('https://re.kufar.by/vi/grodno/obmen/kvartiru/1');
+    expect(message).toContain('https://re.kufar.by/vi/grodno/kupit/kvartiru/1');
     expect(metrics.adsFetched).toBe(1);
     expect(metrics.newListings).toBe(1);
     expect(metrics.alertsSent).toBe(1);
@@ -216,7 +216,8 @@ describe('Kufar sync', () => {
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
     expect(message).toContain('♻️ Измененные');
     expect(message).toContain('Test listing');
-    expect(message).toContain('Изменено: цена $600 → $500');
+    expect(message).toContain('Цена: <b>$500</b>');
+    expect(message).toContain('Изменено: цена <b>$600</b> → <b>$500</b>');
     expect(message).toContain('описание добавлено');
     expect(message).toContain('фото добавлено');
     expect(metrics.adsFetched).toBe(1);

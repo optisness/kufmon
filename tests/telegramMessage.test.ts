@@ -8,16 +8,16 @@ describe("telegramMessage", () => {
         url: "https://re.kufar.by/vi/1059448809",
         category: "1010",
       }),
-    ).toBe("https://re.kufar.by/vi/grodno/obmen/kvartiru/1059448809");
+    ).toBe("https://re.kufar.by/vi/grodno/kupit/kvartiru/1059448809");
   });
 
   it("keeps an already canonical Kufar url unchanged", () => {
     expect(
       buildTelegramListingUrl({
-        url: "https://re.kufar.by/vi/grodno/obmen/kvartiru/1059448809",
+        url: "https://re.kufar.by/vi/grodno/kupit/kvartiru/1059448809",
         category: "1010",
       }),
-    ).toBe("https://re.kufar.by/vi/grodno/obmen/kvartiru/1059448809");
+    ).toBe("https://re.kufar.by/vi/grodno/kupit/kvartiru/1059448809");
   });
 
   it("falls back to a generic path for unknown categories", () => {
@@ -26,10 +26,10 @@ describe("telegramMessage", () => {
         url: "https://re.kufar.by/vi/1059448809",
         category: "9999",
       }),
-    ).toBe("https://re.kufar.by/vi/grodno/obmen/listing/1059448809");
+    ).toBe("https://re.kufar.by/vi/grodno/kupit/listing/1059448809");
   });
 
-  it("formats grouped telegram messages with category styling and change summary", () => {
+  it("formats grouped telegram messages with bold titles and price-first layout", () => {
     const message = formatTelegramBatchMessage([
       {
         eventType: "NEW",
@@ -65,13 +65,12 @@ describe("telegramMessage", () => {
     expect(message).toContain("🆕 Новые");
     expect(message).toContain("♻️ Измененные");
     expect(message).toContain("🗑 Удаленные");
-    expect(message).toContain("🏢 🔵 Квартира");
-    expect(message).toContain("🏭 🟠 Коммерческая");
-    expect(message).toContain("🌾 🟤 Участок");
-    expect(message).toContain("Apartment listing");
+    expect(message).toContain("🏢 <b>Apartment listing</b>");
+    expect(message).toContain("🏭 <b>Office space</b>");
+    expect(message).toContain("🌾 <b>Plot listing</b>");
+    expect(message).toContain("Цена: <b>$167770.8</b>");
     expect(message).toContain("Комнат: 2к");
-    expect(message).toContain("Цена: $167770.8");
-    expect(message).toContain("Изменено: цена $95000 → $90000, описание добавлено, фото добавлено");
-    expect(message).toContain("https://re.kufar.by/vi/grodno/obmen/kvartiru/1059448809");
+    expect(message).toContain("Изменено: цена <b>$95000</b> → <b>$90000</b>, описание добавлено, фото добавлено");
+    expect(message).toContain("https://re.kufar.by/vi/grodno/kupit/kvartiru/1059448809");
   });
 });

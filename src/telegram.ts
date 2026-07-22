@@ -4,7 +4,10 @@ const logger = createLogger({ module: "telegram" });
 
 export async function sendTelegram(
   message: string,
-  chatId: string
+  chatId: string,
+  options?: {
+    parseMode?: "HTML";
+  }
 ) {
   const token = process.env.TELEGRAM_TOKEN;
 
@@ -23,6 +26,7 @@ export async function sendTelegram(
         chat_id: chatId,
         text: message,
         disable_web_page_preview: true,
+        ...(options?.parseMode ? { parse_mode: options.parseMode } : {}),
       }),
     });
 
