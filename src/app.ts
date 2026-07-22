@@ -555,23 +555,22 @@ function renderSubscriptionsPage(options: {
         <thead>
           <tr>
             <th>№</th>
-            <th>ID</th>
             <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Name</th>
             <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="owner">Owner</th>
             <th>Category</th>
-            <th>Seller</th>
+            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="seller">Seller</th>
             <th>Max price</th>
             <th>Rooms</th>
             <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="interval">Interval</th>
             <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="enabled">Enabled</th>
-            <th></th>
+            <th>Delete</th>
+            <th>ID</th>
           </tr>
         </thead>
         <tbody>
           ${options.subscriptions.map((s, index) => `
             <tr>
               <td>${index + 1}</td>
-              <td style="font-size:12px; max-width:100px; word-break:break-all;">${s.id}</td>
               <td>${escapeHtml(s.name)}</td>
               <td>${escapeHtml(s.userId ? getUserDisplayName(options.usersById.get(s.userId)) : "-")}</td>
               <td>${escapeHtml(s.category ? `${s.category} ${options.categoryLabelByValue[s.category] ? `(${options.categoryLabelByValue[s.category]})` : ""}` : "-")}</td>
@@ -579,7 +578,13 @@ function renderSubscriptionsPage(options: {
               <td>${options.subscriptionFiltersById.get(s.id)?.maxPrice != null ? `$${options.subscriptionFiltersById.get(s.id)?.maxPrice}` : "-"}</td>
               <td>${escapeHtml(formatRoomsList(options.subscriptionFiltersById.get(s.id)?.rooms))}</td>
               <td>${s.intervalMinutes} мин</td>
-              <td>${s.enabled ? '✅' : '❌'}</td>
+              <td>
+                <form method="POST" action="/subscriptions/toggle" style="display:inline;">
+                  <input type="hidden" name="id" value="${s.id}" />
+                  <input type="hidden" name="returnTo" value="/ui/subscriptions" />
+                  <button type="submit" class="${s.enabled ? "" : "btn-danger"}" style="padding:5px 10px;">${s.enabled ? "Disable" : "Enable"}</button>
+                </form>
+              </td>
               <td>
                 <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')" style="display:inline;">
                   <input type="hidden" name="id" value="${s.id}" />
@@ -587,6 +592,7 @@ function renderSubscriptionsPage(options: {
                   <button type="submit" class="btn-danger" style="padding:5px 10px;">Удалить</button>
                 </form>
               </td>
+              <td style="font-size:12px; max-width:100px; word-break:break-all;">${s.id}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -919,6 +925,27 @@ app.post("/subscriptions", async (req: any, reply) => {
         }
       }
     }
+  }
+
+  reply.redirect(returnTo);
+});
+
+app.post("/subscriptions/toggle", async (req: any, reply) => {
+  const id = req.body.id;
+  const returnTo = typeof req.body.returnTo === "string" && req.body.returnTo ? req.body.returnTo : "/ui/subscriptions";
+
+  const subscription = await prisma.subscription.findUnique({
+    where: { id },
+    select: { id: true, enabled: true },
+  });
+
+  if (subscription) {
+    await prisma.subscription.update({
+      where: { id },
+      data: {
+        enabled: !subscription.enabled,
+      },
+    });
   }
 
   reply.redirect(returnTo);

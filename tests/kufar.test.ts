@@ -152,6 +152,9 @@ describe('Kufar sync', () => {
     expect(result).toBe(1);
     expect(prismaMock.listing.create).toHaveBeenCalledTimes(1);
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
+    expect(prismaMock.subscription.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { enabled: true } }),
+    );
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
     expect(message).toContain('Подписка: Minsk 2 rooms');
     expect(message).toContain('🆕 Новые');
