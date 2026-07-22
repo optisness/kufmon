@@ -14,7 +14,7 @@ The API is independent of the implementation language and runtime.
 
 Current implementation notes:
 
-- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, the seller-type backfill endpoint, UI pages and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
+- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, UI pages and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
 - The admin UI is split into separate pages: `/ui` for overview, `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings.
 - The admin tables now paginate with `page` and `limit` query parameters instead of rendering the full collection in a single scroll.
 - In the subscriptions table, the active-state toggle is shown as `Enabled` or `Disabled` so the current state is unambiguous.

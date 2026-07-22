@@ -8,8 +8,8 @@ import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } from "./subscriptions.js";
 import { formatEventSummary } from "./listingEvents.js";
+import { formatTelegramBatchMessage } from "./telegramMessage.js";
 import { buildTelegramListingUrl } from "./telegramMessage.js";
-import { fetchKufarItem, parseSellerType } from "./kufarItem.js";
 import {
   buildPaginationMeta,
   buildPaginationUrl,
@@ -105,24 +105,6 @@ function splitMessageChunks(text: string, chunkSize = 3500) {
   return text.match(new RegExp(`[\\s\\S]{1,${chunkSize}}`, "g")) || [];
 }
 
-function buildListingPreview(listing: any, categoryLabelByValue: Record<string, string>) {
-  const categoryLabel = listing.category
-    ? `${listing.category}${categoryLabelByValue[listing.category] ? ` (${categoryLabelByValue[listing.category]})` : ""}`
-    : "-";
-  const canonicalUrl = buildTelegramListingUrl({
-    url: listing.url,
-    category: listing.category ?? null,
-  });
-
-  return [
-    `${listing.title}`,
-    `Цена: ${formatPrice(listing.price)}`,
-    `Комнаты: ${listing.rooms ?? "-"}`,
-    `Категория: ${categoryLabel}`,
-    `Ссылка: ${canonicalUrl}`,
-  ].join("\n");
-}
-
 function sortUsers(users: any[]) {
   return [...users].sort((a, b) => {
     const nameA = typeof a?.name === "string" ? a.name.trim() : "";
@@ -177,43 +159,6 @@ async function cleanupStaleListings() {
       lastSeenAt: { lt: cutoff },
     },
   });
-}
-
-async function backfillListingSellerTypes(limit = 50) {
-  const pendingListings = await prisma.listing.findMany({
-    where: {
-      sellerType: null,
-      url: { startsWith: "https://re.kufar.by/vi/" },
-    },
-    orderBy: { lastSeenAt: "desc" },
-    take: limit,
-  });
-
-  let updated = 0;
-
-  for (const listing of pendingListings) {
-    const id = listing.url.split("/").pop()?.trim();
-    if (!id) continue;
-
-    try {
-      const html = await fetchKufarItem(id);
-      const sellerType = parseSellerType(html);
-      if (!sellerType) continue;
-
-      await prisma.listing.update({
-        where: { id: listing.id },
-        data: { sellerType },
-      });
-      updated += 1;
-    } catch (err) {
-      logger.warn({ err, id: listing.id }, "Failed to backfill seller type");
-    }
-  }
-
-  return {
-    checked: pendingListings.length,
-    updated,
-  };
 }
 
 function buildAdminNav(activePath: string) {
@@ -395,20 +340,6 @@ function renderAdminLayout(options: {
       }
     }
 
-    async function runBackfill() {
-      const el = document.getElementById("backfill-result");
-      el.innerText = " Обновление sellerType...";
-
-      try {
-        const res = await fetch("/backfill-seller-types");
-        const data = await res.json();
-        el.innerText = " ✅ Готово: " + JSON.stringify(data);
-        setTimeout(() => location.reload(), 1500);
-      } catch (e) {
-        el.innerText = " ❌ Ошибка";
-      }
-    }
-
     initTableSorting();
   </script>
 </body>
@@ -444,9 +375,7 @@ function renderOverviewPage() {
     <div class="section">
       <h2>Синхронизация</h2>
       <button onclick="runSync()">▶ Запустить sync</button>
-      <button onclick="runBackfill()">↺ Обновить sellerType</button>
       <span id="sync-result"></span>
-      <span id="backfill-result" style="margin-left:12px;"></span>
     </div>
     `,
   });
@@ -962,17 +891,6 @@ app.get("/ui/listings", async (req: any, reply) => {
   }));
 });
 
-app.get("/backfill-seller-types", async (req: any) => {
-  const limitRaw = typeof req.query?.limit === "string" ? Number(req.query.limit) : 50;
-  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.trunc(limitRaw) : 50;
-  const result = await backfillListingSellerTypes(limit);
-
-  return {
-    ...result,
-    limit,
-  };
-});
-
 app.post("/users", async (req: any, reply) => {
   const body = req.body;
   const returnTo = typeof body.returnTo === "string" && body.returnTo ? body.returnTo : "/ui/users";
@@ -1036,11 +954,17 @@ app.post("/subscriptions", async (req: any, reply) => {
       );
 
       if (matchingListings.length > 0) {
-        const chunks = splitMessageChunks(
-          matchingListings
-            .map((listing) => buildListingPreview(listing, CATEGORY_LABEL_BY_VALUE))
-            .join("\n\n"),
-        );
+        const chunks = splitMessageChunks(formatTelegramBatchMessage(
+          matchingListings.map((listing) => ({
+            eventType: "NEW" as const,
+            category: listing.category ?? null,
+            title: listing.title,
+            rooms: listing.rooms ?? null,
+            price: listing.price,
+            url: listing.url,
+            subscriptionName: subscription.name,
+          })),
+        ));
 
         for (const chunk of chunks) {
           await sendTelegram(chunk, user.telegramChatId);

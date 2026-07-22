@@ -279,252 +279,250 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     },
   });
 
-  await prisma.$transaction(async (tx) => {
-    for (const ad of fetchedAds) {
-      const existing = existingById.get(ad.id);
-      const nextHash = buildContentHash(ad.snapshot);
-        const baseData = {
-          title: ad.snapshot.title,
+  for (const ad of fetchedAds) {
+    const existing = existingById.get(ad.id);
+    const nextHash = buildContentHash(ad.snapshot);
+    const baseData = {
+      title: ad.snapshot.title,
+      price: ad.snapshot.price,
+      category: ad.snapshot.category,
+      sellerType: ad.snapshot.sellerType,
+      description: ad.snapshot.description,
+      imageUrl: ad.snapshot.imageUrl,
+      rooms: ad.snapshot.rooms,
+      currency: "USD",
+      url: ad.snapshot.url,
+      location: ad.snapshot.location ?? existing?.location ?? null,
+      source: "kufar",
+      contentHash: nextHash,
+      missingCount: 0,
+      lastSeenAt: syncTime,
+      isActive: true,
+    };
+
+    if (!existing) {
+      incMetric("newListings");
+      logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "New listing");
+
+      await prisma.listing.create({
+        data: {
+          id: ad.id,
+          ...baseData,
+          firstSeenAt: syncTime,
+        },
+      });
+
+      await prisma.adEvent.create({
+        data: {
+          listingId: ad.id,
+          eventType: "NEW",
+          changesJson: buildNewEventPayload(ad.snapshot),
+        },
+      });
+
+      for (const user of users) {
+        const sellerType = normalizeSellerType(ad.snapshot.sellerType);
+        const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
           price: ad.snapshot.price,
+          rooms: ad.snapshot.rooms,
+          category: ad.snapshot.category,
+          sellerType,
+        });
+
+        if (subscriptionNames.length > 0) {
+          userAlerts[user.id].NEW.push({
+            category: ad.snapshot.category,
+            title: ad.snapshot.title,
+            rooms: ad.snapshot.rooms,
+            price: ad.snapshot.price,
+            url: ad.snapshot.url,
+            subscriptionName: subscriptionNames.join(", "),
+          });
+        }
+      }
+
+      continue;
+    }
+
+    if (existing.isActive === false) {
+      incMetric("newListings");
+      logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "Listing restored");
+
+      await prisma.listing.update({
+        where: { id: ad.id },
+        data: {
+          ...baseData,
+          firstSeenAt: syncTime,
+        },
+      });
+
+      await prisma.adEvent.create({
+        data: {
+          listingId: ad.id,
+          eventType: "NEW",
+          changesJson: buildNewEventPayload(ad.snapshot),
+        },
+      });
+
+      for (const user of users) {
+        const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
+          price: ad.snapshot.price,
+          rooms: ad.snapshot.rooms,
           category: ad.snapshot.category,
           sellerType: ad.snapshot.sellerType,
-          description: ad.snapshot.description,
-          imageUrl: ad.snapshot.imageUrl,
-          rooms: ad.snapshot.rooms,
-        currency: "USD",
-        url: ad.snapshot.url,
-        location: ad.snapshot.location ?? existing?.location ?? null,
-        source: "kufar",
-        contentHash: nextHash,
-        missingCount: 0,
-        lastSeenAt: syncTime,
-        isActive: true,
-      };
-
-      if (!existing) {
-        incMetric("newListings");
-        logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "New listing");
-
-        await tx.listing.create({
-          data: {
-            id: ad.id,
-            ...baseData,
-            firstSeenAt: syncTime,
-          },
         });
 
-        await tx.adEvent.create({
-          data: {
-            listingId: ad.id,
-            eventType: "NEW",
-            changesJson: buildNewEventPayload(ad.snapshot),
-          },
-        });
-
-        for (const user of users) {
-          const sellerType = normalizeSellerType(ad.snapshot.sellerType);
-          const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
-            price: ad.snapshot.price,
-            rooms: ad.snapshot.rooms,
+        if (subscriptionNames.length > 0) {
+          userAlerts[user.id].NEW.push({
             category: ad.snapshot.category,
-            sellerType,
-          });
-
-          if (subscriptionNames.length > 0) {
-            userAlerts[user.id].NEW.push({
-              category: ad.snapshot.category,
-              title: ad.snapshot.title,
-              rooms: ad.snapshot.rooms,
-              price: ad.snapshot.price,
-              url: ad.snapshot.url,
-              subscriptionName: subscriptionNames.join(", "),
-            });
-          }
-        }
-
-        continue;
-      }
-
-      if (existing.isActive === false) {
-        incMetric("newListings");
-        logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "Listing restored");
-
-        await tx.listing.update({
-          where: { id: ad.id },
-          data: {
-            ...baseData,
-            firstSeenAt: syncTime,
-          },
-        });
-
-        await tx.adEvent.create({
-          data: {
-            listingId: ad.id,
-            eventType: "NEW",
-            changesJson: buildNewEventPayload(ad.snapshot),
-          },
-        });
-
-        for (const user of users) {
-          const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
-            price: ad.snapshot.price,
+            title: ad.snapshot.title,
             rooms: ad.snapshot.rooms,
-            category: ad.snapshot.category,
-            sellerType: ad.snapshot.sellerType,
+            price: ad.snapshot.price,
+            url: ad.snapshot.url,
+            subscriptionName: subscriptionNames.join(", "),
           });
-
-          if (subscriptionNames.length > 0) {
-            userAlerts[user.id].NEW.push({
-              category: ad.snapshot.category,
-              title: ad.snapshot.title,
-              rooms: ad.snapshot.rooms,
-              price: ad.snapshot.price,
-              url: ad.snapshot.url,
-              subscriptionName: subscriptionNames.join(", "),
-            });
-          }
         }
-
-        continue;
       }
 
-      if (existing.contentHash == null) {
-        await tx.listing.update({
-          where: { id: ad.id },
-          data: baseData,
-        });
-        continue;
-      }
+      continue;
+    }
 
-      const previousSnapshot = {
-        price: existing.price,
-        description: existing.description ?? null,
-        imageUrl: existing.imageUrl ?? null,
-        rooms: existing.rooms ?? null,
-      };
-      const nextSnapshot = {
-        price: ad.snapshot.price,
-        description: ad.snapshot.description,
-        imageUrl: ad.snapshot.imageUrl,
-        rooms: ad.snapshot.rooms,
-      };
-      const changes = diffListingSnapshots(previousSnapshot, nextSnapshot);
-
-      await tx.listing.update({
+    if (existing.contentHash == null) {
+      await prisma.listing.update({
         where: { id: ad.id },
         data: baseData,
       });
+      continue;
+    }
 
-      if (changes.length > 0) {
-        incMetric("changedListings");
-        if (changes.some((change) => change.field === "price")) {
-          incMetric("priceChanges");
-        }
+    const previousSnapshot = {
+      price: existing.price,
+      description: existing.description ?? null,
+      imageUrl: existing.imageUrl ?? null,
+      rooms: existing.rooms ?? null,
+    };
+    const nextSnapshot = {
+      price: ad.snapshot.price,
+      description: ad.snapshot.description,
+      imageUrl: ad.snapshot.imageUrl,
+      rooms: ad.snapshot.rooms,
+    };
+    const changes = diffListingSnapshots(previousSnapshot, nextSnapshot);
 
-        logger.info({ id: ad.id, category: ad.snapshot.category, changes }, "Listing changed");
-        await tx.adEvent.create({
-          data: {
-            listingId: ad.id,
-            eventType: "CHANGED",
-            changesJson: buildChangedEventPayload(changes),
-          },
+    await prisma.listing.update({
+      where: { id: ad.id },
+      data: baseData,
+    });
+
+    if (changes.length > 0) {
+      incMetric("changedListings");
+      if (changes.some((change) => change.field === "price")) {
+        incMetric("priceChanges");
+      }
+
+      logger.info({ id: ad.id, category: ad.snapshot.category, changes }, "Listing changed");
+      await prisma.adEvent.create({
+        data: {
+          listingId: ad.id,
+          eventType: "CHANGED",
+          changesJson: buildChangedEventPayload(changes),
+        },
+      });
+
+      for (const user of users) {
+        const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
+          price: ad.snapshot.price,
+          rooms: ad.snapshot.rooms,
+          category: ad.snapshot.category,
+          sellerType: ad.snapshot.sellerType,
         });
 
-        for (const user of users) {
-          const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
-            price: ad.snapshot.price,
-            rooms: ad.snapshot.rooms,
+        if (subscriptionNames.length > 0) {
+          userAlerts[user.id].CHANGED.push({
             category: ad.snapshot.category,
-            sellerType: ad.snapshot.sellerType,
+            title: ad.snapshot.title,
+            rooms: ad.snapshot.rooms,
+            price: ad.snapshot.price,
+            url: ad.snapshot.url,
+            subscriptionName: subscriptionNames.join(", "),
+            changes,
           });
-
-          if (subscriptionNames.length > 0) {
-            userAlerts[user.id].CHANGED.push({
-              category: ad.snapshot.category,
-              title: ad.snapshot.title,
-              rooms: ad.snapshot.rooms,
-              price: ad.snapshot.price,
-              url: ad.snapshot.url,
-              subscriptionName: subscriptionNames.join(", "),
-              changes,
-            });
-          }
         }
       }
     }
+  }
 
-    for (const listing of activeListings) {
-      if (currentIds.has(listing.id)) {
-        continue;
-      }
+  for (const listing of activeListings) {
+    if (currentIds.has(listing.id)) {
+      continue;
+    }
 
-      const missingCount = Number(listing.missingCount ?? 0) + 1;
+    const missingCount = Number(listing.missingCount ?? 0) + 1;
 
-      if (missingCount >= 3) {
-        incMetric("deactivations");
+    if (missingCount >= 3) {
+      incMetric("deactivations");
 
-        await tx.listing.update({
-          where: { id: listing.id },
-          data: {
+      await prisma.listing.update({
+        where: { id: listing.id },
+        data: {
+          missingCount,
+          isActive: false,
+        },
+      });
+
+      await prisma.adEvent.create({
+        data: {
+          listingId: listing.id,
+          eventType: "REMOVED",
+          changesJson: buildRemovedEventPayload(
+            (() => {
+              const sellerType = normalizeSellerType(listing.sellerType);
+              return {
+                title: listing.title,
+                price: listing.price,
+                description: listing.description ?? null,
+                imageUrl: listing.imageUrl ?? null,
+                rooms: listing.rooms ?? null,
+                category: listing.category ?? null,
+                sellerType,
+                url: listing.url,
+                location: listing.location ?? null,
+              };
+            })(),
             missingCount,
-            isActive: false,
-          },
+          ),
+        },
+      });
+
+      for (const user of users) {
+        const sellerType = normalizeSellerType(listing.sellerType);
+        const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
+          price: listing.price,
+          rooms: listing.rooms ?? null,
+          category: listing.category ?? null,
+          sellerType,
         });
 
-        await tx.adEvent.create({
-          data: {
-            listingId: listing.id,
-            eventType: "REMOVED",
-            changesJson: buildRemovedEventPayload(
-              (() => {
-                const sellerType = normalizeSellerType(listing.sellerType);
-                return {
-                  title: listing.title,
-                  price: listing.price,
-                  description: listing.description ?? null,
-                  imageUrl: listing.imageUrl ?? null,
-                  rooms: listing.rooms ?? null,
-                  category: listing.category ?? null,
-                  sellerType,
-                  url: listing.url,
-                  location: listing.location ?? null,
-                };
-              })(),
-              missingCount,
-            ),
-          },
-        });
-
-        for (const user of users) {
-          const sellerType = normalizeSellerType(listing.sellerType);
-          const subscriptionNames = getMatchingSubscriptionNames(subscriptionsByUser, user.id, {
-            price: listing.price,
-            rooms: listing.rooms ?? null,
+        if (subscriptionNames.length > 0) {
+          userAlerts[user.id].REMOVED.push({
             category: listing.category ?? null,
-            sellerType,
+            title: listing.title,
+            rooms: listing.rooms ?? null,
+            price: listing.price,
+            url: listing.url,
+            subscriptionName: subscriptionNames.join(", "),
           });
-
-          if (subscriptionNames.length > 0) {
-            userAlerts[user.id].REMOVED.push({
-              category: listing.category ?? null,
-              title: listing.title,
-              rooms: listing.rooms ?? null,
-              price: listing.price,
-              url: listing.url,
-              subscriptionName: subscriptionNames.join(", "),
-            });
-          }
         }
-      } else {
-        await tx.listing.update({
-          where: { id: listing.id },
-          data: {
-            missingCount,
-          },
-        });
       }
+    } else {
+      await prisma.listing.update({
+        where: { id: listing.id },
+        data: {
+          missingCount,
+        },
+      });
     }
-  });
+  }
 
   const staleCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   await prisma.listing.deleteMany({
