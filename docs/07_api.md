@@ -455,7 +455,7 @@ Possible additions:
 
 ```
 
-GET /price-history
+GET /listings/{id}/events
 
 GET /statistics
 

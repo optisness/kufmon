@@ -150,6 +150,15 @@ price
 
 ---
 
+## Content Changed
+
+Expected:
+
+- one or more of `price`, `description`, `imageUrl`, `rooms` are reported;
+- unchanged fields are omitted.
+
+---
+
 ## Multiple Changes
 
 Expected:
@@ -225,6 +234,14 @@ REMOVED
 ```
 
 after threshold.
+
+## Temporary Miss Then Return
+
+Expected:
+
+- first or second missing sync only increments `missing_count`;
+- if the ad returns unchanged, no event is created;
+- if the ad returns with changes, a `CHANGED` event is created against the previous version.
 
 ---
 

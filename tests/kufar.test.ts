@@ -9,13 +9,18 @@ const prismaMock = {
     findMany: vi.fn(),
   },
   listing: {
+    findMany: vi.fn(),
     findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
     upsert: vi.fn(),
     updateMany: vi.fn(),
   },
-  priceHistory: {
+  adEvent: {
     create: vi.fn(),
+    findMany: vi.fn(),
   },
+  $transaction: vi.fn(async (cb) => cb(prismaMock)),
 };
 
 const sendTelegramMock = vi.fn();
@@ -54,6 +59,7 @@ const installFetchMock = (responses: any[]) => {
 describe('Kufar sync', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    prismaMock.$transaction.mockImplementation(async (cb) => cb(prismaMock));
     Object.keys(metrics).forEach((key) => {
       metrics[key as keyof typeof metrics] = 0;
     });
@@ -110,10 +116,11 @@ describe('Kufar sync', () => {
         enabled: true,
       },
     ]);
-    prismaMock.listing.findUnique.mockResolvedValue(null);
-    prismaMock.listing.upsert.mockResolvedValue({ id: '1' });
-    prismaMock.priceHistory.create.mockResolvedValue({});
-    prismaMock.listing.updateMany.mockResolvedValue({ count: 0 });
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prismaMock.listing.create.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
     sendTelegramMock.mockResolvedValue(true);
 
     installFetchMock([
@@ -129,6 +136,8 @@ describe('Kufar sync', () => {
                 { p: 'rooms', v: '2' },
                 { p: 'coordinates', v: [27.5, 53.9] },
               ],
+              body_short: 'Cozy flat',
+              images: [{ path: 'adim1/example.jpg' }],
             },
           ],
         }),
@@ -138,8 +147,8 @@ describe('Kufar sync', () => {
     const result = await saveKufarAds();
 
     expect(result).toBe(1);
-    expect(prismaMock.priceHistory.create).toHaveBeenCalledTimes(1);
-    expect(prismaMock.listing.upsert).toHaveBeenCalledTimes(1);
+    expect(prismaMock.listing.create).toHaveBeenCalledTimes(1);
+    expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
     expect(metrics.adsFetched).toBe(1);
     expect(metrics.newListings).toBe(1);
@@ -160,10 +169,13 @@ describe('Kufar sync', () => {
         enabled: true,
       },
     ]);
-    prismaMock.listing.findUnique.mockResolvedValue({ id: '1', price: 600 });
-    prismaMock.listing.upsert.mockResolvedValue({ id: '1' });
-    prismaMock.priceHistory.create.mockResolvedValue({});
-    prismaMock.listing.updateMany.mockResolvedValue({ count: 0 });
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([
+        { id: '1', price: 600, contentHash: 'old', description: null, imageUrl: null, rooms: 2, isActive: true, category: '1010', title: 'Old title', url: 'https://re.kufar.by/vi/1', location: null, missingCount: 0 },
+      ])
+      .mockResolvedValueOnce([]);
+    prismaMock.listing.update.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
     sendTelegramMock.mockResolvedValue(true);
 
     installFetchMock([
@@ -179,6 +191,8 @@ describe('Kufar sync', () => {
                 { p: 'rooms', v: '2' },
                 { p: 'coordinates', v: [27.5, 53.9] },
               ],
+              body_short: 'Updated description',
+              images: [{ path: 'adim1/updated.jpg' }],
             },
           ],
         }),
@@ -188,10 +202,11 @@ describe('Kufar sync', () => {
     const result = await saveKufarAds();
 
     expect(result).toBe(1);
-    expect(prismaMock.priceHistory.create).toHaveBeenCalledTimes(1);
-    expect(prismaMock.listing.upsert).toHaveBeenCalledTimes(1);
+    expect(prismaMock.listing.update).toHaveBeenCalledTimes(1);
+    expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
     expect(metrics.adsFetched).toBe(1);
+    expect(metrics.changedListings).toBe(1);
     expect(metrics.priceChanges).toBe(1);
     expect(metrics.alertsSent).toBe(1);
   });
@@ -209,10 +224,11 @@ describe('Kufar sync', () => {
         enabled: true,
       },
     ]);
-    prismaMock.listing.findUnique.mockResolvedValue(null);
-    prismaMock.listing.upsert.mockResolvedValue({ id: '1' });
-    prismaMock.priceHistory.create.mockResolvedValue({});
-    prismaMock.listing.updateMany.mockResolvedValue({ count: 0 });
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prismaMock.listing.create.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
     sendTelegramMock.mockResolvedValue(true);
 
     installFetchMock([
@@ -228,6 +244,8 @@ describe('Kufar sync', () => {
                 { p: 'rooms', v: '2' },
                 { p: 'coordinates', v: [27.5, 53.9] },
               ],
+              body_short: 'Matching listing',
+              images: [{ path: 'adim1/example.jpg' }],
             },
           ],
         }),
@@ -237,6 +255,7 @@ describe('Kufar sync', () => {
     const result = await saveKufarAds();
 
     expect(result).toBe(1);
+    expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
     expect(metrics.adsFetched).toBe(1);
     expect(metrics.newListings).toBe(1);
@@ -257,10 +276,11 @@ describe('Kufar sync', () => {
         enabled: true,
       },
     ]);
-    prismaMock.listing.findUnique.mockResolvedValue(null);
-    prismaMock.listing.upsert.mockResolvedValue({ id: '1' });
-    prismaMock.priceHistory.create.mockResolvedValue({});
-    prismaMock.listing.updateMany.mockResolvedValue({ count: 0 });
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prismaMock.listing.create.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
     sendTelegramMock.mockResolvedValue(true);
 
     installFetchMock([
@@ -289,10 +309,85 @@ describe('Kufar sync', () => {
     const result = await saveKufarAds();
 
     expect(result).toBe(1);
+    expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(sendTelegramMock).not.toHaveBeenCalled();
     expect(metrics.adsFetched).toBe(1);
     expect(metrics.newListings).toBe(1);
     expect(metrics.alertsSent).toBe(0);
+  });
+
+  it('restores a temporarily missing listing without logging an event when content is unchanged', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'user-1', telegramChatId: '123' },
+    ]);
+    prismaMock.subscription.findMany.mockResolvedValue([]);
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([
+        {
+          id: '1',
+          title: 'Test listing',
+          price: 400,
+          description: 'Stable description',
+          imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg',
+          rooms: 2,
+          category: '1010',
+          url: 'https://re.kufar.by/vi/1',
+          location: null,
+          source: 'kufar',
+          contentHash: 'same',
+          missingCount: 1,
+          isActive: true,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: '1',
+          title: 'Test listing',
+          price: 400,
+          description: 'Stable description',
+          imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg',
+          rooms: 2,
+          category: '1010',
+          url: 'https://re.kufar.by/vi/1',
+          location: null,
+          source: 'kufar',
+          contentHash: 'same',
+          missingCount: 1,
+          isActive: true,
+        },
+      ]);
+    prismaMock.listing.update.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
+    sendTelegramMock.mockResolvedValue(true);
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          ads: [
+            {
+              ad_id: 1,
+              subject: 'Test listing',
+              price_byn: '40000',
+              body_short: 'Stable description',
+              images: [{ path: 'adim1/example.jpg' }],
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const result = await saveKufarAds();
+
+    expect(result).toBe(1);
+    expect(prismaMock.adEvent.create).not.toHaveBeenCalled();
+    expect(sendTelegramMock).not.toHaveBeenCalled();
+    expect(metrics.changedListings).toBe(0);
+    expect(metrics.deactivations).toBe(0);
   });
 
   it('matches listings by subscription fields and category', () => {

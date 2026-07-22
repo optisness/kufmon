@@ -115,6 +115,9 @@ Supported types:
 - CHANGED
 - REMOVED
 
+For `CHANGED`, only significant fields are tracked: `price`, `description`, `imageUrl`, and `rooms`.
+`REMOVED` is emitted after the third consecutive missing sync so temporary Kufar glitches do not create false deletions.
+
 ---
 
 # Notification

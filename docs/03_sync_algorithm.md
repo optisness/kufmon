@@ -1,5 +1,7 @@
 # 03_sync_algorithm.md
 
+Current implementation note: the persisted entity is `Listing`; immutable history rows are written to `AdEvent`; change detection tracks only `price`, `description`, `imageUrl`, and `rooms`; `missingCount` protects against temporary source failures; `REMOVED` is emitted only on the third consecutive miss; and if a listing returns after the first or second miss unchanged, no event is written.
+
 # Алгоритм синхронизации объявлений
 
 ## 1. Назначение
@@ -161,26 +163,14 @@ Snapshot считается валидным только если
 content_hash
 ```
 
-Hash вычисляется только по значимым полям.
+Hash вычисляется только по значимым полям:
 
-Например:
+- price
+- description
+- imageUrl
+- rooms
 
-- цена
-- площадь
-- комнаты
-- этаж
-- описание
-- фотографии
-- город
-- год постройки
-
-Не участвуют:
-
-- last_seen_at
-- updated_at
-- payload_json
-- missing_count
-- is_deleted
+Он не включает timestamps, counters или raw payload.
 
 ---
 
@@ -510,6 +500,12 @@ missing_count
 ROLLBACK
 ```
 
+Порог удаления равен `3`, поэтому первый и второй пропуск только увеличивают `missingCount`.
+
+Если объявление вернулось после первого или второго пропуска и значимые поля не изменились, событие не создается.
+
+Если объявление вернулось с изменениями значимых полей, создается `CHANGED` относительно предыдущей версии.
+
 ---
 
 # 11. Блокировка
@@ -572,39 +568,36 @@ error_message
 
 ## ads
 
-Добавить
+Current implementation uses `Listing` and stores:
 
-```text
-content_hash
-
-missing_count
-
-updated_at
-
-category
-max_price
-rooms
-```
+- `description`
+- `imageUrl`
+- `contentHash`
+- `missingCount`
+- `category`
+- `rooms`
 
 ---
 
 ## subscriptions
 
-Добавить
+Current implementation uses `Subscription` and stores:
 
-```text
-category
-```
+- `category`
+- `maxPrice`
+- `rooms`
 
 ---
 
 ## ad_events
 
-Добавить
+Current implementation uses `AdEvent` and stores:
 
-```text
-sync_run_id
-```
+- `eventType`
+- `changesJson`
+- `createdAt`
+
+The history UI renders `NEW`, `CHANGED`, and `REMOVED` from this table.
 
 ---
 

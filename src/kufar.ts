@@ -3,6 +3,14 @@ import { sendTelegram } from "./telegram.js";
 import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
 import { matchesSubscriptionListing } from "./subscriptions.js";
+import {
+  buildChangedEventPayload,
+  buildContentHash,
+  buildNewEventPayload,
+  buildRemovedEventPayload,
+  diffListingSnapshots,
+  normalizeKufarListing,
+} from "./listingEvents.js";
 
 const logger = createLogger({ module: "kufar" });
 
@@ -81,45 +89,6 @@ export async function fetchKufarMap(options?: Parameters<typeof buildKufarSearch
 
 export { buildKufarSearchUrl };
 
-function findAdParamValue(ad: any, key: string) {
-  const params = ad?.ad_parameters;
-  if (!Array.isArray(params)) return null;
-  const item = params.find((p: any) => p?.p === key);
-  return item?.v ?? null;
-}
-
-function minorUnitsToNumber(value: any) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return n / 100;
-}
-
-function normalizeRenderedAd(ad: any, category: string | null) {
-  const id = String(ad?.ad_id ?? ad?.list_id ?? "");
-  const subject = ad?.subject ?? "Unknown";
-  const roomsRaw = findAdParamValue(ad, "rooms");
-  const rooms = roomsRaw != null ? Number(roomsRaw) : null;
-
-  const coords = findAdParamValue(ad, "coordinates");
-  const c =
-    Array.isArray(coords) && coords.length >= 2
-      ? [Number(coords[0]), Number(coords[1])]
-      : null;
-
-  const priceBynMinor = ad?.price_byn ?? null;
-  const price = priceBynMinor != null ? minorUnitsToNumber(priceBynMinor) : 0;
-  const adCategory = ad?.category != null ? String(ad.category) : category;
-
-  return {
-    i: id,
-    subject,
-    p: price,
-    rooms,
-    c,
-    category: adCategory,
-  };
-}
-
 async function resolveSyncCategories(options?: Parameters<typeof fetchKufarMap>[0]) {
   if (options?.category) {
     return [options.category];
@@ -144,6 +113,25 @@ async function resolveSyncCategories(options?: Parameters<typeof fetchKufarMap>[
   categories.add(process.env.KUFAR_CATEGORY ?? KUFAR_CATEGORIES.apartments);
 
   return Array.from(categories);
+}
+
+function matchesUserSubscriptions(
+  subscriptionsByUser: Record<string, any[]>,
+  userId: string,
+  ad: { price: number; rooms: number | null; category: string | null },
+) {
+  const userSubs = subscriptionsByUser[userId] || [];
+  return userSubs.some((subscription) =>
+    matchesSubscriptionListing(subscription, {
+      price: ad.price,
+      rooms: ad.rooms,
+      category: ad.category,
+    }),
+  );
+}
+
+function buildUserAlertLine(ad: { category: string | null; title: string; price: number; rooms: number | null; url: string }) {
+  return `🔥 [${ad.category ?? "?"}] ${ad.title}\n${ad.price} | ${ad.rooms ?? "?"}к\n${ad.url}`;
 }
 
 export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]) {
@@ -171,122 +159,260 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     }
   }
 
-  function matchesSubscription(user: any, ad: any) {
-    const userSubs = subscriptionsByUser[user.id] || [];
-    return userSubs.some((subscription) => {
-      return matchesSubscriptionListing(subscription, {
-        price: ad.p ?? 0,
-        rooms: ad.rooms ?? null,
-        category: ad.category ?? null,
-      });
-    });
-  }
+  const fetchedAds: Array<{
+    id: string;
+    snapshot: ReturnType<typeof normalizeKufarListing>;
+  }> = [];
 
   for (const category of categoriesToSync) {
     const data = await fetchKufarMap({ ...options, category });
-    const ads = Array.isArray(data.ads) ? data.ads.map((ad: any) => normalizeRenderedAd(ad, category)) : [];
+    const ads = Array.isArray(data.ads) ? data.ads : [];
 
     incMetric("adsFetched", ads.length);
 
     for (const ad of ads) {
-      const id = String(ad.i);
-      const adCategory = ad.category ?? category ?? null;
+      const id = String(ad?.ad_id ?? ad?.list_id ?? "");
+      if (!id) continue;
 
+      const snapshot = normalizeKufarListing(ad, category);
       currentIds.add(id);
+      fetchedAds.push({ id, snapshot });
+    }
+  }
 
-      const title = ad.subject ?? "Unknown";
-      const price = ad.p ?? 0;
-      const rooms = ad.rooms ?? null;
-
-      const existing = await prisma.listing.findUnique({
-        where: { id },
-      });
-
-      const isNew = !existing;
-      const priceChanged = !!(existing && existing.price !== price);
-
-      await prisma.listing.upsert({
-        where: { id },
-        update: {
-          title,
-          price,
-          category: adCategory,
-          lastSeenAt: new Date(),
-          isActive: true,
+  const syncTime = new Date();
+  const fetchedIds = fetchedAds.map((item) => item.id);
+  const existingListings = fetchedIds.length > 0
+    ? await prisma.listing.findMany({
+        where: {
+          id: { in: fetchedIds },
         },
-        create: {
-          id,
-          title,
-          price,
-          category: adCategory,
-          currency: "BYN",
-          url: `https://re.kufar.by/vi/${id}`,
-          location: `${ad.c?.[1]}, ${ad.c?.[0]}`,
-          source: "kufar",
-        },
-      });
+      })
+    : [];
+  const existingById = new Map(existingListings.map((listing) => [listing.id, listing]));
 
-      if (isNew) {
+  const activeListings = await prisma.listing.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        { category: { in: categoriesToSync } },
+        { category: null },
+      ],
+    },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    for (const ad of fetchedAds) {
+      const existing = existingById.get(ad.id);
+      const nextHash = buildContentHash(ad.snapshot);
+      const baseData = {
+        title: ad.snapshot.title,
+        price: ad.snapshot.price,
+        category: ad.snapshot.category,
+        description: ad.snapshot.description,
+        imageUrl: ad.snapshot.imageUrl,
+        rooms: ad.snapshot.rooms,
+        currency: "BYN",
+        url: ad.snapshot.url,
+        location: ad.snapshot.location ?? existing?.location ?? null,
+        source: "kufar",
+        contentHash: nextHash,
+        missingCount: 0,
+        lastSeenAt: syncTime,
+        isActive: true,
+      };
+
+      if (!existing) {
         incMetric("newListings");
-        logger.info({ id, category: adCategory, price }, "New listing");
-        await prisma.priceHistory.create({
+        logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "New listing");
+
+        await tx.listing.create({
           data: {
-            listingId: id,
-            price,
+            id: ad.id,
+            ...baseData,
+            firstSeenAt: syncTime,
           },
         });
+
+        await tx.adEvent.create({
+          data: {
+            listingId: ad.id,
+            eventType: "NEW",
+            changesJson: buildNewEventPayload(ad.snapshot),
+          },
+        });
+
+        for (const user of users) {
+          if (
+            matchesUserSubscriptions(subscriptionsByUser, user.id, {
+              price: ad.snapshot.price,
+              rooms: ad.snapshot.rooms,
+              category: ad.snapshot.category,
+            })
+          ) {
+            userAlerts[user.id].push(buildUserAlertLine({
+              category: ad.snapshot.category,
+              title: ad.snapshot.title,
+              price: ad.snapshot.price,
+              rooms: ad.snapshot.rooms,
+              url: ad.snapshot.url,
+            }));
+          }
+        }
+
+        continue;
       }
 
-      if (priceChanged) {
-        incMetric("priceChanges");
-        logger.info({ id, category: adCategory, oldPrice: existing.price, newPrice: price }, "Price changed");
+      if (existing.isActive === false) {
+        incMetric("newListings");
+        logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "Listing restored");
 
-        await prisma.priceHistory.create({
+        await tx.listing.update({
+          where: { id: ad.id },
           data: {
-            listingId: id,
-            price,
+            ...baseData,
+            firstSeenAt: syncTime,
           },
         });
 
-        if (price < existing.price) {
-          for (const user of users) {
-            const userMatch = matchesSubscription(user, ad);
+        await tx.adEvent.create({
+          data: {
+            listingId: ad.id,
+            eventType: "NEW",
+            changesJson: buildNewEventPayload(ad.snapshot),
+          },
+        });
 
-            if (userMatch) {
+        for (const user of users) {
+          if (
+            matchesUserSubscriptions(subscriptionsByUser, user.id, {
+              price: ad.snapshot.price,
+              rooms: ad.snapshot.rooms,
+              category: ad.snapshot.category,
+            })
+          ) {
+            userAlerts[user.id].push(buildUserAlertLine({
+              category: ad.snapshot.category,
+              title: ad.snapshot.title,
+              price: ad.snapshot.price,
+              rooms: ad.snapshot.rooms,
+              url: ad.snapshot.url,
+            }));
+          }
+        }
+
+        continue;
+      }
+
+      if (existing.contentHash == null) {
+        await tx.listing.update({
+          where: { id: ad.id },
+          data: baseData,
+        });
+        continue;
+      }
+
+      const previousSnapshot = {
+        price: existing.price,
+        description: existing.description ?? null,
+        imageUrl: existing.imageUrl ?? null,
+        rooms: existing.rooms ?? null,
+      };
+      const nextSnapshot = {
+        price: ad.snapshot.price,
+        description: ad.snapshot.description,
+        imageUrl: ad.snapshot.imageUrl,
+        rooms: ad.snapshot.rooms,
+      };
+      const changes = diffListingSnapshots(previousSnapshot, nextSnapshot);
+
+      await tx.listing.update({
+        where: { id: ad.id },
+        data: baseData,
+      });
+
+      if (changes.length > 0) {
+        incMetric("changedListings");
+        if (changes.some((change) => change.field === "price")) {
+          incMetric("priceChanges");
+        }
+
+        logger.info({ id: ad.id, category: ad.snapshot.category, changes }, "Listing changed");
+        await tx.adEvent.create({
+          data: {
+            listingId: ad.id,
+            eventType: "CHANGED",
+            changesJson: buildChangedEventPayload(changes),
+          },
+        });
+
+        const oldPrice = existing.price;
+        const newPrice = ad.snapshot.price;
+        if (newPrice < oldPrice) {
+          for (const user of users) {
+            if (
+              matchesUserSubscriptions(subscriptionsByUser, user.id, {
+                price: ad.snapshot.price,
+                rooms: ad.snapshot.rooms,
+                category: ad.snapshot.category,
+              })
+            ) {
               userAlerts[user.id].push(
-                `🔽 Цена упала!\n[${adCategory ?? "?"}] ${existing.price} → ${price}\nhttps://re.kufar.by/vi/${id}`
+                `🔽 Цена упала!\n[${ad.snapshot.category ?? "?"}] ${oldPrice} → ${newPrice}\n${ad.snapshot.url}`,
               );
             }
           }
         }
       }
+    }
 
-      for (const user of users) {
-        const userMatch = matchesSubscription(user, ad);
+    for (const listing of activeListings) {
+      if (currentIds.has(listing.id)) {
+        continue;
+      }
 
-        if (isNew && userMatch) {
-          userAlerts[user.id].push(`🔥 [${adCategory ?? "?"}] ${price} | ${rooms ?? "?"}к\nhttps://re.kufar.by/vi/${id}`);
-        }
+      const missingCount = Number(listing.missingCount ?? 0) + 1;
+
+      if (missingCount >= 3) {
+        incMetric("deactivations");
+
+        await tx.listing.update({
+          where: { id: listing.id },
+          data: {
+            missingCount,
+            isActive: false,
+          },
+        });
+
+        await tx.adEvent.create({
+          data: {
+            listingId: listing.id,
+            eventType: "REMOVED",
+            changesJson: buildRemovedEventPayload(
+              {
+                title: listing.title,
+                price: listing.price,
+                description: listing.description ?? null,
+                imageUrl: listing.imageUrl ?? null,
+                rooms: listing.rooms ?? null,
+                category: listing.category ?? null,
+                url: listing.url,
+                location: listing.location ?? null,
+              },
+              missingCount,
+            ),
+          },
+        });
+      } else {
+        await tx.listing.update({
+          where: { id: listing.id },
+          data: {
+            missingCount,
+          },
+        });
       }
     }
-  }
-
-  const deactivated = await prisma.listing.updateMany({
-    where: {
-      id: {
-        notIn: Array.from(currentIds) as string[],
-      },
-      isActive: true,
-    },
-    data: {
-      isActive: false,
-    },
   });
-
-  incMetric("deactivations", deactivated.count ?? 0);
-  if ((deactivated.count ?? 0) > 0) {
-    logger.info({ count: deactivated.count, categories: categoriesToSync }, "Listings deactivated");
-  }
 
   let notificationsSent = 0;
 

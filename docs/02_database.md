@@ -160,12 +160,14 @@ UNIQUE(source, source_ad_id)
 
 # ad_events
 
+Implementation note: Prisma model name is `AdEvent`. The UI history page renders `NEW`, `CHANGED`, and `REMOVED` from this table, and `changes_json` stores either the creation snapshot, the diff, or the removal snapshot plus `missingCount`.
+
 Журнал изменений.
 
   Поле
   --------------------
   id
-  ad_id FK ads
+  listing_id FK ads
   event_type
   changes_json JSONB
   created_at

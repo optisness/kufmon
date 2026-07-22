@@ -14,16 +14,20 @@ model Listing {
   currency String
   url      String  @unique
   location String?
+  description String?
+  imageUrl String?
   rooms    Int?
   category String?
   source   String  @default("kufar")
   isActive Boolean @default(true)
+  contentHash String?
+  missingCount Int @default(0)
 
   firstSeenAt DateTime @default(now())
-  lastSeenAt  DateTime @default(now()) @updatedAt
+  lastSeenAt  DateTime @default(now())
   createdAt   DateTime @default(now())
 
-  priceHistory PriceHistory[]
+  events       AdEvent[]
 }
 
 model User {
@@ -36,13 +40,17 @@ model User {
   createdAt DateTime @default(now())
 }
 
-model PriceHistory {
-  id        String   @id @default(cuid())
-  listingId String
-  price     Int
-  createdAt DateTime @default(now())
+model AdEvent {
+  id          String   @id @default(cuid())
+  listingId   String
+  eventType   String
+  changesJson Json
+  createdAt   DateTime @default(now())
 
   listing Listing @relation(fields: [listingId], references: [id])
+
+  @@index([listingId, createdAt])
+  @@index([eventType])
 }
 
 model Subscription {

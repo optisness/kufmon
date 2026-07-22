@@ -7,6 +7,7 @@ import { sendTelegram } from "./telegram.js";
 import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } from "./subscriptions.js";
+import { formatEventSummary } from "./listingEvents.js";
 
 const app = Fastify({
   logger,
@@ -670,17 +671,24 @@ app.post("/users/delete", async (req: any, reply) => {
 app.get("/history/:id", async (req: any, reply) => {
   const id = req.params.id;
 
-  const history = await prisma.priceHistory.findMany({
+  const history = await prisma.adEvent.findMany({
     where: { listingId: id },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
   });
 
   let html = "<html><head><meta charset='UTF-8' /></head>";
   html += "<body style='font-family: Arial; padding: 20px'>";
-  html += "<h2>История цен</h2>";
+  html += "<h2>История изменений</h2>";
   
-  for (const h of history) {
-    html += "<div>" + h.price + " — " + new Date(h.createdAt).toLocaleString() + "</div>";
+  if (history.length === 0) {
+    html += "<div>Нет событий</div>";
+  }
+
+  for (const event of history) {
+    html += "<div style='margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #ddd;'>";
+    html += "<div><strong>" + escapeHtml(event.eventType) + "</strong> — " + new Date(event.createdAt).toLocaleString() + "</div>";
+    html += "<pre style='margin:8px 0 0; white-space:pre-wrap; font-family:inherit;'>" + escapeHtml(formatEventSummary(event.eventType, event.changesJson)) + "</pre>";
+    html += "</div>";
   }
   
   html += "</body></html>";

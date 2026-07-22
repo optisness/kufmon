@@ -145,7 +145,7 @@ The MVP is complete when:
 
 - Server & API: реализован HTTP-сервер с базовыми эндпойнтами и простым UI ([src/app.ts](src/app.ts#L1)).
 - Synchronization: cron-работа и логика синхронизации/сохранения объявлений реализованы ([src/cron.ts](src/cron.ts#L1), [src/kufar.ts](src/kufar.ts#L1)).
-- Database: Prisma-схема и миграции есть, модель `PriceHistory` и `User` присутствуют ([prisma/schema.prisma](prisma/schema.prisma#L1)).
+- Database: Prisma-схема и миграции есть, модели `Listing`, `AdEvent`, `User` и `Subscription` присутствуют ([prisma/schema.prisma](prisma/schema.prisma#L1)).
 - Notifications: отправка в Telegram реализована ([src/telegram.ts](src/telegram.ts#L1)).
 - Monitoring: базовые endpoints `/health` и `/metrics` реализованы, логирование через Pino.
 - UI: простая админская страница `/ui` для просмотра объявлений и пользователей ([src/app.ts](src/app.ts#L1)).
@@ -316,7 +316,7 @@ Provide insights from collected data.
 
 Examples
 
-- Price history
+- Event history
 - Average price
 - Price changes
 - Time on market
