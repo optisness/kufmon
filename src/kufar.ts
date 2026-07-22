@@ -119,7 +119,7 @@ async function resolveSyncCategories(options?: Parameters<typeof fetchKufarMap>[
 function matchesUserSubscriptions(
   subscriptionsByUser: Record<string, any[]>,
   userId: string,
-  ad: { price: number; rooms: number | null; category: string | null },
+  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null },
 ) {
   const userSubs = subscriptionsByUser[userId] || [];
   return userSubs.some((subscription) =>
@@ -127,8 +127,17 @@ function matchesUserSubscriptions(
       price: ad.price,
       rooms: ad.rooms,
       category: ad.category,
+      sellerType: ad.sellerType,
     }),
   );
+}
+
+function normalizeSellerType(value: unknown): "company" | "private" | null {
+  if (value === "company" || value === "private") {
+    return value;
+  }
+
+  return null;
 }
 
 export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]) {
@@ -217,13 +226,14 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     for (const ad of fetchedAds) {
       const existing = existingById.get(ad.id);
       const nextHash = buildContentHash(ad.snapshot);
-      const baseData = {
-        title: ad.snapshot.title,
-        price: ad.snapshot.price,
-        category: ad.snapshot.category,
-        description: ad.snapshot.description,
-        imageUrl: ad.snapshot.imageUrl,
-        rooms: ad.snapshot.rooms,
+        const baseData = {
+          title: ad.snapshot.title,
+          price: ad.snapshot.price,
+          category: ad.snapshot.category,
+          sellerType: ad.snapshot.sellerType,
+          description: ad.snapshot.description,
+          imageUrl: ad.snapshot.imageUrl,
+          rooms: ad.snapshot.rooms,
         currency: "USD",
         url: ad.snapshot.url,
         location: ad.snapshot.location ?? existing?.location ?? null,
@@ -255,11 +265,13 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
         });
 
         for (const user of users) {
+          const sellerType = normalizeSellerType(ad.snapshot.sellerType);
           if (
             matchesUserSubscriptions(subscriptionsByUser, user.id, {
               price: ad.snapshot.price,
               rooms: ad.snapshot.rooms,
               category: ad.snapshot.category,
+              sellerType,
             })
           ) {
             userAlerts[user.id].NEW.push({
@@ -301,6 +313,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
               price: ad.snapshot.price,
               rooms: ad.snapshot.rooms,
               category: ad.snapshot.category,
+              sellerType: ad.snapshot.sellerType,
             })
           ) {
             userAlerts[user.id].NEW.push({
@@ -364,6 +377,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
               price: ad.snapshot.price,
               rooms: ad.snapshot.rooms,
               category: ad.snapshot.category,
+              sellerType: ad.snapshot.sellerType,
             })
           ) {
             userAlerts[user.id].CHANGED.push({
@@ -402,27 +416,33 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
             listingId: listing.id,
             eventType: "REMOVED",
             changesJson: buildRemovedEventPayload(
-              {
-                title: listing.title,
-                price: listing.price,
-                description: listing.description ?? null,
-                imageUrl: listing.imageUrl ?? null,
-                rooms: listing.rooms ?? null,
-                category: listing.category ?? null,
-                url: listing.url,
-                location: listing.location ?? null,
-              },
+              (() => {
+                const sellerType = normalizeSellerType(listing.sellerType);
+                return {
+                  title: listing.title,
+                  price: listing.price,
+                  description: listing.description ?? null,
+                  imageUrl: listing.imageUrl ?? null,
+                  rooms: listing.rooms ?? null,
+                  category: listing.category ?? null,
+                  sellerType,
+                  url: listing.url,
+                  location: listing.location ?? null,
+                };
+              })(),
               missingCount,
             ),
           },
         });
 
         for (const user of users) {
+          const sellerType = normalizeSellerType(listing.sellerType);
           if (
             matchesUserSubscriptions(subscriptionsByUser, user.id, {
               price: listing.price,
               rooms: listing.rooms ?? null,
               category: listing.category ?? null,
+              sellerType,
             })
           ) {
             userAlerts[user.id].REMOVED.push({

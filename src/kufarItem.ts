@@ -51,6 +51,16 @@ export function parseListingData(html: string) {
   }
 }
 
+export function parseSellerType(html: string) {
+  const match =
+    html.match(/"company_ad"\s*:\s*(true|false)/i) ||
+    html.match(/"company_ad"\s*:\s*(1|0)/);
+
+  if (!match) return null;
+
+  return /true|1/i.test(match[1]) ? "company" : "private";
+}
+
 export function extractJson(html: string) {
   const match = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{.*?\});/s);
 

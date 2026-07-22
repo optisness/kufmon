@@ -157,6 +157,10 @@ Implementation note: `Listing.price` is the normalized USD price used everywhere
   is_deleted
   payload_json JSONB
 
+  seller_type stores the normalized Kufar seller flag:
+  - company
+  - private
+
 UNIQUE(source, source_ad_id)
 
 ------------------------------------------------------------------------
@@ -231,6 +235,8 @@ event_type:
 -   INDEX(category)
 -   INDEX(enabled)
 -   INDEX(last_check_at)
+
+Subscriptions also carry `seller_type_filter`, which is currently either `all` or `private` and is used to filter notification delivery.
 
 ## user_subscriptions
 

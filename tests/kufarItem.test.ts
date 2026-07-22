@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseListingData } from '../src/kufarItem.js';
+import { parseListingData, parseSellerType } from '../src/kufarItem.js';
 
 describe('parseListingData', () => {
   it('parses title, price, rooms and area from html', () => {
@@ -27,5 +27,13 @@ describe('parseListingData', () => {
     expect(result).toHaveProperty('price');
     expect(result).toHaveProperty('rooms');
     expect(result).toHaveProperty('area');
+  });
+
+  it('parses seller type from html company flag', () => {
+    const companyHtml = `<script>window.__INITIAL_STATE__ = {"company_ad": true};</script>`;
+    const privateHtml = `<script>window.__INITIAL_STATE__ = {"company_ad": false};</script>`;
+
+    expect(parseSellerType(companyHtml)).toBe('company');
+    expect(parseSellerType(privateHtml)).toBe('private');
   });
 });

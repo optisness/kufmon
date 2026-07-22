@@ -14,7 +14,7 @@ The API is independent of the implementation language and runtime.
 
 Current implementation notes:
 
-- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, UI pages and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
+- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, the seller-type backfill endpoint, UI pages and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
 - The admin UI is split into separate pages: `/ui` for overview, `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings.
 - The listings page sorts price using the normalized numeric value, so the `"$"` prefix shown in the table does not break sorting.
 
@@ -64,6 +64,7 @@ Request:
     "name": "Minsk 2 rooms",
     "userId": "user-123",
     "category": "1010",
+    "sellerTypeFilter": "private",
     "maxPrice": 80000,
     "rooms": [2],
     "intervalMinutes": 30
@@ -72,9 +73,9 @@ Request:
 
 A subscription owns optional filter criteria and is attached to a single user. The implementation keeps the UI simple by splitting the common filters into separate `maxPrice` and `rooms` fields instead of a raw JSON editor.
 
-In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name. The new `category` field stores the Kufar category code used for the search, such as `1010`, `1020`, `1050`, or `1080`. After creation, the service sends the user a Telegram backfill containing matching active listings from the last subscription interval.
+In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name. The `category` field stores the Kufar category code used for the search, such as `1010`, `1020`, `1050`, or `1080`. The `sellerTypeFilter` field supports `all` and `private`, so a subscription can receive either every matching listing or only private sellers. After creation, the service sends the user a Telegram backfill containing matching active listings from the last subscription interval.
 
-The subscription creation form is compacted into two visual rows in the admin UI: the first row contains name, user, and interval; the second row contains category, max price, rooms, and submit.
+The subscription creation form is compacted into two visual rows in the admin UI: the first row contains name, user, and interval; the second row contains category, seller type, max price, rooms, and submit.
 
 Response:
 

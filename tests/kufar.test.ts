@@ -385,6 +385,57 @@ describe('Kufar sync', () => {
     expect(metrics.alertsSent).toBe(0);
   });
 
+  it('does not send company ads to private-only subscriptions', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'user-1', telegramChatId: '123' },
+    ]);
+    prismaMock.subscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-1',
+        userId: 'user-1',
+        category: '1010',
+        sellerTypeFilter: 'private',
+        maxPrice: 300,
+        rooms: [2],
+        enabled: true,
+      },
+    ]);
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prismaMock.listing.create.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
+    sendTelegramMock.mockResolvedValue(true);
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          ads: [
+            {
+              ad_id: 1,
+              subject: 'Company listing',
+              price_usd: '25000',
+              company_ad: true,
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const result = await saveKufarAds();
+
+    expect(result).toBe(1);
+    expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
+    expect(sendTelegramMock).not.toHaveBeenCalled();
+    expect(metrics.newListings).toBe(1);
+    expect(metrics.alertsSent).toBe(0);
+  });
+
   it('restores a temporarily missing listing without logging an event when content is unchanged', async () => {
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'user-1', telegramChatId: '123' },
@@ -526,14 +577,28 @@ describe('Kufar sync', () => {
     expect(
       matchesSubscriptionListing(
         { category: '1010', maxPrice: 80000, rooms: [1, 2] },
-        { category: '1010', price: 75000, rooms: 2 },
+        { category: '1010', price: 75000, rooms: 2, sellerType: 'private' },
       ),
     ).toBe(true);
 
     expect(
       matchesSubscriptionListing(
         { category: '1010', maxPrice: 80000, rooms: [1, 2] },
-        { category: '1050', price: 75000, rooms: 2 },
+        { category: '1050', price: 75000, rooms: 2, sellerType: 'private' },
+      ),
+    ).toBe(false);
+
+    expect(
+      matchesSubscriptionListing(
+        { category: '1010', sellerTypeFilter: 'private' },
+        { category: '1010', price: 75000, rooms: 2, sellerType: 'private' },
+      ),
+    ).toBe(true);
+
+    expect(
+      matchesSubscriptionListing(
+        { category: '1010', sellerTypeFilter: 'private' },
+        { category: '1010', price: 75000, rooms: 2, sellerType: 'company' },
       ),
     ).toBe(false);
   });

@@ -406,7 +406,12 @@ phone_hidden
 is_mine
 ```
 
-Current synchronization ignores these fields.
+`company_ad` is mapped to the internal `seller_type` field and used for subscription filtering:
+
+- `true` -> `company`
+- `false` -> `private`
+
+The other boolean flags are still ignored.
 
 ---
 

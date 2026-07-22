@@ -7,6 +7,7 @@ export type ListingSnapshot = {
   imageUrl: string | null;
   rooms: number | null;
   category: string | null;
+  sellerType: "company" | "private" | null;
   url: string;
   location: string | null;
 };
@@ -58,6 +59,7 @@ export function normalizeKufarListing(ad: any, fallbackCategory: string | null):
   const description = normalizeText(ad?.body ?? ad?.body_short ?? ad?.description ?? null);
   const imageUrl = extractFirstImageUrl(ad?.images);
   const category = ad?.category != null ? String(ad.category) : fallbackCategory;
+  const sellerType = ad?.company_ad === true ? "company" : ad?.company_ad === false ? "private" : null;
   const coords = Array.isArray(ad?.c) && ad.c.length >= 2 ? [Number(ad.c[0]), Number(ad.c[1])] : null;
   const location = coords ? `${coords[1]}, ${coords[0]}` : null;
   const url = normalizeText(ad?.ad_link || ad?.url || (ad?.ad_id != null ? `https://re.kufar.by/vi/${String(ad.ad_id)}` : null)) ?? "";
@@ -69,6 +71,7 @@ export function normalizeKufarListing(ad: any, fallbackCategory: string | null):
     imageUrl,
     rooms,
     category,
+    sellerType,
     url,
     location,
   };

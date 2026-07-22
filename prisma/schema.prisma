@@ -18,6 +18,7 @@ model Listing {
   imageUrl String?
   rooms    Int?
   category String?
+  sellerType String?
   source   String  @default("kufar")
   isActive Boolean @default(true)
   contentHash String?
@@ -58,6 +59,7 @@ model Subscription {
   name            String
   userId          String?
   category        String?
+  sellerTypeFilter String   @default("all")
   maxPrice        Int?
   rooms           Json?
   filters         Json?

@@ -9,6 +9,7 @@ import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } from "./subscriptions.js";
 import { formatEventSummary } from "./listingEvents.js";
 import { buildTelegramListingUrl } from "./telegramMessage.js";
+import { fetchKufarItem, parseSellerType } from "./kufarItem.js";
 
 const app = Fastify({
   logger,
@@ -140,6 +141,43 @@ async function cleanupStaleListings() {
       lastSeenAt: { lt: cutoff },
     },
   });
+}
+
+async function backfillListingSellerTypes(limit = 50) {
+  const pendingListings = await prisma.listing.findMany({
+    where: {
+      sellerType: null,
+      url: { startsWith: "https://re.kufar.by/vi/" },
+    },
+    orderBy: { lastSeenAt: "desc" },
+    take: limit,
+  });
+
+  let updated = 0;
+
+  for (const listing of pendingListings) {
+    const id = listing.url.split("/").pop()?.trim();
+    if (!id) continue;
+
+    try {
+      const html = await fetchKufarItem(id);
+      const sellerType = parseSellerType(html);
+      if (!sellerType) continue;
+
+      await prisma.listing.update({
+        where: { id: listing.id },
+        data: { sellerType },
+      });
+      updated += 1;
+    } catch (err) {
+      logger.warn({ err, id: listing.id }, "Failed to backfill seller type");
+    }
+  }
+
+  return {
+    checked: pendingListings.length,
+    updated,
+  };
 }
 
 function buildAdminNav(activePath: string) {
@@ -312,6 +350,20 @@ function renderAdminLayout(options: {
       }
     }
 
+    async function runBackfill() {
+      const el = document.getElementById("backfill-result");
+      el.innerText = " Обновление sellerType...";
+
+      try {
+        const res = await fetch("/backfill-seller-types");
+        const data = await res.json();
+        el.innerText = " ✅ Готово: " + JSON.stringify(data);
+        setTimeout(() => location.reload(), 1500);
+      } catch (e) {
+        el.innerText = " ❌ Ошибка";
+      }
+    }
+
     initTableSorting();
   </script>
 </body>
@@ -347,7 +399,9 @@ function renderOverviewPage() {
     <div class="section">
       <h2>Синхронизация</h2>
       <button onclick="runSync()">▶ Запустить sync</button>
+      <button onclick="runBackfill()">↺ Обновить sellerType</button>
       <span id="sync-result"></span>
+      <span id="backfill-result" style="margin-left:12px;"></span>
     </div>
     `,
   });
@@ -430,11 +484,18 @@ function renderSubscriptionFormMarkup(options: {
             <input name="intervalMinutes" type="number" value="30" required />
           </div>
         </div>
-        <div class="form-row" style="grid-template-columns: 1fr 1fr 1.8fr auto; align-items:end;">
+        <div class="form-row" style="grid-template-columns: 1fr 0.9fr 1fr 1.8fr auto; align-items:end;">
           <div class="form-group">
             <label>Категория поиска</label>
             <select name="category" required>
               ${options.categoryOptionMarkup}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Продавец</label>
+            <select name="sellerTypeFilter" required>
+              <option value="all">Все</option>
+              <option value="private">Только физлица</option>
             </select>
           </div>
           <div class="form-group">
@@ -498,6 +559,7 @@ function renderSubscriptionsPage(options: {
             <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Name</th>
             <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="owner">Owner</th>
             <th>Category</th>
+            <th>Seller</th>
             <th>Max price</th>
             <th>Rooms</th>
             <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="interval">Interval</th>
@@ -513,6 +575,7 @@ function renderSubscriptionsPage(options: {
               <td>${escapeHtml(s.name)}</td>
               <td>${escapeHtml(s.userId ? getUserDisplayName(options.usersById.get(s.userId)) : "-")}</td>
               <td>${escapeHtml(s.category ? `${s.category} ${options.categoryLabelByValue[s.category] ? `(${options.categoryLabelByValue[s.category]})` : ""}` : "-")}</td>
+              <td>${escapeHtml(s.sellerTypeFilter === "private" ? "Только физлица" : "Все")}</td>
               <td>${options.subscriptionFiltersById.get(s.id)?.maxPrice != null ? `$${options.subscriptionFiltersById.get(s.id)?.maxPrice}` : "-"}</td>
               <td>${escapeHtml(formatRoomsList(options.subscriptionFiltersById.get(s.id)?.rooms))}</td>
               <td>${s.intervalMinutes} мин</td>
@@ -551,6 +614,7 @@ function renderListingsPage(options: {
             <th>ID</th>
             <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="title">Название</th>
             <th>Category</th>
+            <th>Seller</th>
             <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="price">Цена</th>
             <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="rooms">Комнаты</th>
             <th>Ссылка</th>
@@ -564,6 +628,7 @@ function renderListingsPage(options: {
               <td style="font-size:11px;">${l.id}</td>
               <td>${escapeHtml(l.title)}</td>
               <td>${escapeHtml(l.category ? `${l.category} ${options.categoryLabelByValue[l.category] ? `(${options.categoryLabelByValue[l.category]})` : ""}` : "-")}</td>
+              <td>${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td>${l.rooms ?? "-"}</td>
               <td>
@@ -769,6 +834,17 @@ app.get("/ui/listings", async (_req, reply) => {
   reply.type("text/html; charset=utf-8").send(renderListingsPage({ listings, categoryLabelByValue }));
 });
 
+app.get("/backfill-seller-types", async (req: any) => {
+  const limitRaw = typeof req.query?.limit === "string" ? Number(req.query.limit) : 50;
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.trunc(limitRaw) : 50;
+  const result = await backfillListingSellerTypes(limit);
+
+  return {
+    ...result,
+    limit,
+  };
+});
+
 app.post("/users", async (req: any, reply) => {
   const body = req.body;
   const returnTo = typeof body.returnTo === "string" && body.returnTo ? body.returnTo : "/ui/users";
@@ -787,6 +863,7 @@ app.post("/subscriptions", async (req: any, reply) => {
   const body = req.body;
   const returnTo = typeof body.returnTo === "string" && body.returnTo ? body.returnTo : "/ui/subscriptions";
   const userId = body.userId || null;
+  const sellerTypeFilter = body.sellerTypeFilter === "private" ? "private" : "all";
   const maxPrice = parseOptionalNumber(body.maxPrice);
   const rooms = parseRoomsSelection(body.rooms);
   const intervalMinutes = parseOptionalNumber(body.intervalMinutes) ?? 30;
@@ -796,6 +873,7 @@ app.post("/subscriptions", async (req: any, reply) => {
       name: body.name || "unnamed",
       userId,
       category: body.category || null,
+      sellerTypeFilter,
       maxPrice,
       rooms,
       intervalMinutes,

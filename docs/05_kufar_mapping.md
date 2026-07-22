@@ -385,6 +385,8 @@ Mapping:
 | true | company |
 | false | private |
 
+This field is persisted on `Listing.sellerType` and can be used by subscription filters to keep only private sellers.
+
 ---
 
 # Nullable Fields

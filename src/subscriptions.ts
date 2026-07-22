@@ -1,5 +1,6 @@
 type SubscriptionLike = {
   category?: string | null;
+  sellerTypeFilter?: string | null;
   maxPrice?: number | null;
   rooms?: unknown;
   filters?: unknown;
@@ -9,6 +10,7 @@ type ListingLike = {
   price?: number | null;
   rooms?: number | null;
   category?: string | null;
+  sellerType?: string | null;
 };
 
 function parseMaybeJson(value: unknown) {
@@ -94,6 +96,10 @@ export function matchesSubscriptionListing(subscription: SubscriptionLike, listi
   }
 
   if (subscription.category && !listing.category) {
+    return false;
+  }
+
+  if (subscription.sellerTypeFilter === "private" && listing.sellerType !== "private") {
     return false;
   }
 
