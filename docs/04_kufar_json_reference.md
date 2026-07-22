@@ -171,6 +171,8 @@ Common real-estate categories used by this service:
 - `1080` - land plots
 - `1050` - commercial real estate
 
+The synchronization pipeline uses `price_usd` as the primary displayed price field.
+
 ---
 
 # Transaction Type

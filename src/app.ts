@@ -59,6 +59,11 @@ function parseRoomsSelection(value: any) {
     .filter((room): room is string => room != null);
 }
 
+function formatPrice(value: number | string | null | undefined) {
+  if (value == null || value === "") return "—";
+  return `$${String(value)}`;
+}
+
 function splitMessageChunks(text: string, chunkSize = 3500) {
   return text.match(new RegExp(`[\\s\\S]{1,${chunkSize}}`, "g")) || [];
 }
@@ -74,7 +79,7 @@ function buildListingPreview(listing: any, categoryLabelByValue: Record<string, 
 
   return [
     `${listing.title}`,
-    `Цена: ${listing.price}`,
+    `Цена: ${formatPrice(listing.price)}`,
     `Комнаты: ${listing.rooms ?? "-"}`,
     `Категория: ${categoryLabel}`,
     `Ссылка: ${canonicalUrl}`,
@@ -475,7 +480,7 @@ app.get("/ui", async (req, reply) => {
             <td>${escapeHtml(s.name)}</td>
             <td>${escapeHtml(s.userId ? getUserDisplayName(usersById.get(s.userId)) : "-")}</td>
             <td>${escapeHtml(s.category ? `${s.category} ${categoryLabelByValue[s.category] ? `(${categoryLabelByValue[s.category]})` : ""}` : "-")}</td>
-            <td>${subscriptionFiltersById.get(s.id)?.maxPrice ?? "-"}</td>
+            <td>${subscriptionFiltersById.get(s.id)?.maxPrice != null ? `$${subscriptionFiltersById.get(s.id)?.maxPrice}` : "-"}</td>
             <td>${escapeHtml(formatRoomsList(subscriptionFiltersById.get(s.id)?.rooms))}</td>
             <td>${s.intervalMinutes} мин</td>
             <td>${s.enabled ? '✅' : '❌'}</td>
@@ -510,7 +515,7 @@ app.get("/ui", async (req, reply) => {
             <td style="font-size:11px;">${l.id}</td>
             <td>${escapeHtml(l.title)}</td>
             <td>${escapeHtml(l.category ? `${l.category} ${categoryLabelByValue[l.category] ? `(${categoryLabelByValue[l.category]})` : ""}` : "-")}</td>
-            <td class="price">${l.price}</td>
+            <td class="price">$${l.price}</td>
             <td>${l.rooms ?? "-"}</td>
             <td>
               <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>

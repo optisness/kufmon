@@ -11,7 +11,7 @@ describe('parseListingData', () => {
         </head>
         <body>
           <script>
-            var data = {"price_byn": 12345, "rooms": 3, "area": 56.7};
+            var data = {"price_usd": 12345, "rooms": 3, "area": 56.7};
           </script>
         </body>
       </html>
@@ -21,7 +21,7 @@ describe('parseListingData', () => {
 
     expect(result).toBeTruthy();
     expect(result?.title).toContain('Test listing title');
-    // price is extracted via regex looking for "price_byn"
+    // price is extracted via regex looking for "price_usd"
     // but our inline script doesn't match the regex exactly, so price may be null
     // ensure function returns object with keys
     expect(result).toHaveProperty('price');

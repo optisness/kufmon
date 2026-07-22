@@ -29,7 +29,7 @@ const CATEGORY_PRESENTATION: Record<string, CategoryPresentation> = {
   "1010": { icon: "🏢", accent: "🔵", label: "Квартира", urlSegment: "kvartiru" },
   "1020": { icon: "🏠", accent: "🟢", label: "Дом", urlSegment: "dom" },
   "1050": { icon: "🏭", accent: "🟠", label: "Коммерческая", urlSegment: "kommercheskuyu" },
-  "1080": { icon: "🌾", accent: "🟤", label: "Участок", urlSegment: "uchastok" },
+  "1080": { icon: "🌾", accent: "🟤", label: "Участок", urlSegment: "listing" },
 };
 
 function getCategoryPresentation(category: string | null): CategoryPresentation {
@@ -48,6 +48,11 @@ function getCategoryPresentation(category: string | null): CategoryPresentation 
 function formatValue(value: string | number | null) {
   if (value == null || value === "") return "—";
   return String(value);
+}
+
+function formatPrice(value: string | number | null) {
+  if (value == null || value === "") return "—";
+  return `$${String(value)}`;
 }
 
 function formatRooms(rooms: number | null) {
@@ -83,7 +88,7 @@ function formatChanges(changes: ListingEventAlert["changes"]) {
 
   const parts = changes.map((change) => {
     if (change.field === "price") {
-      return `цена ${formatValue(change.old)} → ${formatValue(change.new)}`;
+      return `цена ${formatPrice(change.old)} → ${formatPrice(change.new)}`;
     }
 
     if (change.field === "description") {
@@ -115,7 +120,7 @@ function formatListingCard(alert: ListingEventAlert) {
     `${category.icon} ${category.accent} ${category.label}`,
     title,
     `Комнат: ${formatRooms(alert.rooms)}`,
-    `Цена: ${formatValue(alert.price)}`,
+    `Цена: ${formatPrice(alert.price)}`,
   ];
 
   const changesLine = formatChanges(alert.changes);

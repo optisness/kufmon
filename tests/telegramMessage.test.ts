@@ -70,8 +70,8 @@ describe("telegramMessage", () => {
     expect(message).toContain("🌾 🟤 Участок");
     expect(message).toContain("Apartment listing");
     expect(message).toContain("Комнат: 2к");
-    expect(message).toContain("Цена: 167770.8");
-    expect(message).toContain("Изменено: цена 95000 → 90000, описание добавлено, фото добавлено");
+    expect(message).toContain("Цена: $167770.8");
+    expect(message).toContain("Изменено: цена $95000 → $90000, описание добавлено, фото добавлено");
     expect(message).toContain("https://re.kufar.by/vi/grodno/obmen/kvartiru/1059448809");
   });
 });

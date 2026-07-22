@@ -132,7 +132,7 @@ describe('Kufar sync', () => {
             {
               ad_id: 1,
               subject: 'Test listing',
-              price_byn: '40000',
+              price_usd: '40000',
               ad_parameters: [
                 { p: 'rooms', v: '2' },
                 { p: 'coordinates', v: [27.5, 53.9] },
@@ -156,7 +156,7 @@ describe('Kufar sync', () => {
     expect(message).toContain('🏢 🔵 Квартира');
     expect(message).toContain('Test listing');
     expect(message).toContain('Комнат: 2к');
-    expect(message).toContain('Цена: 400');
+    expect(message).toContain('Цена: $400');
     expect(message).toContain('https://re.kufar.by/vi/grodno/obmen/kvartiru/1');
     expect(metrics.adsFetched).toBe(1);
     expect(metrics.newListings).toBe(1);
@@ -194,7 +194,7 @@ describe('Kufar sync', () => {
             {
               ad_id: 1,
               subject: 'Test listing',
-              price_byn: '50000',
+              price_usd: '50000',
               ad_parameters: [
                 { p: 'rooms', v: '2' },
                 { p: 'coordinates', v: [27.5, 53.9] },
@@ -216,7 +216,7 @@ describe('Kufar sync', () => {
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
     expect(message).toContain('♻️ Измененные');
     expect(message).toContain('Test listing');
-    expect(message).toContain('Изменено: цена 600 → 500');
+    expect(message).toContain('Изменено: цена $600 → $500');
     expect(message).toContain('описание добавлено');
     expect(message).toContain('фото добавлено');
     expect(metrics.adsFetched).toBe(1);
@@ -253,7 +253,7 @@ describe('Kufar sync', () => {
             {
               ad_id: 1,
               subject: 'Test listing',
-              price_byn: '25000',
+              price_usd: '25000',
               ad_parameters: [
                 { p: 'rooms', v: '2' },
                 { p: 'coordinates', v: [27.5, 53.9] },
@@ -309,7 +309,7 @@ describe('Kufar sync', () => {
             {
               ad_id: 1,
               subject: 'Test listing',
-              price_byn: '25000',
+              price_usd: '25000',
               ad_parameters: [
                 { p: 'rooms', v: '2' },
                 { p: 'coordinates', v: [27.5, 53.9] },
@@ -382,7 +382,7 @@ describe('Kufar sync', () => {
             {
               ad_id: 1,
               subject: 'Test listing',
-              price_byn: '40000',
+              price_usd: '40000',
               body_short: 'Stable description',
               images: [{ path: 'adim1/example.jpg' }],
               ad_parameters: [

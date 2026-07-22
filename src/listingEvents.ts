@@ -48,7 +48,9 @@ function extractFirstImageUrl(images: any) {
 
 export function normalizeKufarListing(ad: any, fallbackCategory: string | null): ListingSnapshot {
   const title = normalizeText(ad?.subject) ?? "Unknown";
-  const price = Number(ad?.price_byn != null ? Number(ad.price_byn) / 100 : 0);
+  const rawUsd = ad?.price_usd != null ? Number(ad.price_usd) / 100 : null;
+  const rawByn = ad?.price_byn != null ? Number(ad.price_byn) / 100 : null;
+  const price = Number.isFinite(rawUsd as number) ? (rawUsd as number) : Number.isFinite(rawByn as number) ? (rawByn as number) : 0;
   const roomsRaw = ad?.rooms ?? ad?.ad_parameters?.find?.((p: any) => p?.p === "rooms")?.v ?? null;
   const rooms = roomsRaw != null && Number.isFinite(Number(roomsRaw)) ? Number(roomsRaw) : null;
   const description = normalizeText(ad?.body ?? ad?.body_short ?? ad?.description ?? null);
@@ -60,7 +62,7 @@ export function normalizeKufarListing(ad: any, fallbackCategory: string | null):
 
   return {
     title,
-    price: Number.isFinite(price) ? price : 0,
+    price,
     description,
     imageUrl,
     rooms,
@@ -123,13 +125,18 @@ function formatValue(value: string | number | null) {
   return String(value);
 }
 
+function formatPrice(value: string | number | null) {
+  if (value == null || value === "") return "—";
+  return `$${String(value)}`;
+}
+
 export function formatEventSummary(eventType: string, changesJson: any) {
   if (eventType === "NEW") {
     const snapshot = changesJson?.snapshot;
     if (!snapshot) return "Создано новое объявление";
     const parts = [
       `Создано: ${snapshot.title}`,
-      `Цена: ${formatValue(snapshot.price)}`,
+      `Цена: ${formatPrice(snapshot.price)}`,
       `Комнаты: ${formatValue(snapshot.rooms)}`,
     ];
     if (snapshot.description) parts.push(`Описание: ${snapshot.description}`);
@@ -148,6 +155,9 @@ export function formatEventSummary(eventType: string, changesJson: any) {
           imageUrl: "Фото",
           rooms: "Комнаты",
         }[change.field];
+        if (change.field === "price") {
+          return `${label}: ${formatPrice(change.old)} → ${formatPrice(change.new)}`;
+        }
         return `${label}: ${formatValue(change.old)} → ${formatValue(change.new)}`;
       })
       .join("\n");

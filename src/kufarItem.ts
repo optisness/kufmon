@@ -29,7 +29,7 @@ export function parseListingData(html: string) {
     const title = titleMatch?.[1]?.trim();
 
     // price
-    const priceMatch = html.match(/"price_byn":\s*(\d+)/);
+    const priceMatch = html.match(/"price_usd":\s*(\d+)/) || html.match(/"price_byn":\s*(\d+)/);
     const price = priceMatch ? Number(priceMatch[1]) : null;
 
     // rooms

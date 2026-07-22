@@ -129,6 +129,8 @@ CHECK гарантирует заполнение полей согласно `t
 
 Последнее состояние объявления.
 
+Implementation note: `Listing.price` is the normalized USD price used everywhere in the UI, Telegram messages, and history.
+
   Поле
   --------------------
   id

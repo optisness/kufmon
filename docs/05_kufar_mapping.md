@@ -139,6 +139,7 @@ Incoming values:
 ```
 
 Kufar stores prices in minor monetary units.
+The service treats `price_usd` as the canonical price source and displays it with a `$` prefix.
 
 Normalization:
 
@@ -147,13 +148,15 @@ Normalization:
 
 ↓
 
-60000.00
+$60000.00
 ```
 
 Rules:
 
 ```
-price = integer / 100
+price = price_usd / 100
+
+If `price_usd` is unavailable, the implementation may fall back to `price_byn` for compatibility, but USD remains the canonical display currency.
 ```
 
 If the value is missing:

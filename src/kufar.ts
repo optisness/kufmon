@@ -224,7 +224,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
         description: ad.snapshot.description,
         imageUrl: ad.snapshot.imageUrl,
         rooms: ad.snapshot.rooms,
-        currency: "BYN",
+        currency: "USD",
         url: ad.snapshot.url,
         location: ad.snapshot.location ?? existing?.location ?? null,
         source: "kufar",
