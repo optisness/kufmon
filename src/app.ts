@@ -288,7 +288,7 @@ function renderAdminLayout(options: {
         return 0;
       });
 
-      sortedRows.forEach((row) => table.appendChild(row));
+      sortedRows.forEach((row) => body.appendChild(row));
       renumberTable(table);
     }
 
@@ -376,26 +376,30 @@ function renderUsersPage(users: any[]) {
 
       <h3>Существующие пользователи</h3>
       <table data-sort-table="users">
-        <tr>
-          <th>№</th>
-          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Имя / название</th>
-          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="chatId">Chat ID</th>
-          <th></th>
-        </tr>
-        ${users.map((u, index) => `
+        <thead>
           <tr>
-            <td>${index + 1}</td>
-            <td>${escapeHtml(u.name?.trim() || "-")}</td>
-            <td>${escapeHtml(u.telegramChatId)}</td>
-            <td>
-              <form method="POST" action="/users/delete" onsubmit="return confirm('Удалить пользователя?')" style="display:inline;">
-                <input type="hidden" name="id" value="${u.id}" />
-                <input type="hidden" name="returnTo" value="/ui/users" />
-                <button type="submit" class="btn-danger" style="padding:5px 10px;">Удалить</button>
-              </form>
-            </td>
+            <th>№</th>
+            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Имя / название</th>
+            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="chatId">Chat ID</th>
+            <th></th>
           </tr>
-        `).join("")}
+        </thead>
+        <tbody>
+          ${users.map((u, index) => `
+            <tr>
+              <td>${index + 1}</td>
+              <td>${escapeHtml(u.name?.trim() || "-")}</td>
+              <td>${escapeHtml(u.telegramChatId)}</td>
+              <td>
+                <form method="POST" action="/users/delete" onsubmit="return confirm('Удалить пользователя?')" style="display:inline;">
+                  <input type="hidden" name="id" value="${u.id}" />
+                  <input type="hidden" name="returnTo" value="/ui/users" />
+                  <button type="submit" class="btn-danger" style="padding:5px 10px;">Удалить</button>
+                </form>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
       </table>
     </div>
     `,
@@ -487,38 +491,42 @@ function renderSubscriptionsPage(options: {
 
       <h3>Существующие подписки</h3>
       <table data-sort-table="subscriptions">
-        <tr>
-          <th>№</th>
-          <th>ID</th>
-          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Name</th>
-          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="owner">Owner</th>
-          <th>Category</th>
-          <th>Max price</th>
-          <th>Rooms</th>
-          <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="interval">Interval</th>
-          <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="enabled">Enabled</th>
-          <th></th>
-        </tr>
-        ${options.subscriptions.map((s, index) => `
+        <thead>
           <tr>
-            <td>${index + 1}</td>
-            <td style="font-size:12px; max-width:100px; word-break:break-all;">${s.id}</td>
-            <td>${escapeHtml(s.name)}</td>
-            <td>${escapeHtml(s.userId ? getUserDisplayName(options.usersById.get(s.userId)) : "-")}</td>
-            <td>${escapeHtml(s.category ? `${s.category} ${options.categoryLabelByValue[s.category] ? `(${options.categoryLabelByValue[s.category]})` : ""}` : "-")}</td>
-            <td>${options.subscriptionFiltersById.get(s.id)?.maxPrice != null ? `$${options.subscriptionFiltersById.get(s.id)?.maxPrice}` : "-"}</td>
-            <td>${escapeHtml(formatRoomsList(options.subscriptionFiltersById.get(s.id)?.rooms))}</td>
-            <td>${s.intervalMinutes} мин</td>
-            <td>${s.enabled ? '✅' : '❌'}</td>
-            <td>
-              <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')" style="display:inline;">
-                <input type="hidden" name="id" value="${s.id}" />
-                <input type="hidden" name="returnTo" value="/ui/subscriptions" />
-                <button type="submit" class="btn-danger" style="padding:5px 10px;">Удалить</button>
-              </form>
-            </td>
+            <th>№</th>
+            <th>ID</th>
+            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Name</th>
+            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="owner">Owner</th>
+            <th>Category</th>
+            <th>Max price</th>
+            <th>Rooms</th>
+            <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="interval">Interval</th>
+            <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="enabled">Enabled</th>
+            <th></th>
           </tr>
-        `).join('')}
+        </thead>
+        <tbody>
+          ${options.subscriptions.map((s, index) => `
+            <tr>
+              <td>${index + 1}</td>
+              <td style="font-size:12px; max-width:100px; word-break:break-all;">${s.id}</td>
+              <td>${escapeHtml(s.name)}</td>
+              <td>${escapeHtml(s.userId ? getUserDisplayName(options.usersById.get(s.userId)) : "-")}</td>
+              <td>${escapeHtml(s.category ? `${s.category} ${options.categoryLabelByValue[s.category] ? `(${options.categoryLabelByValue[s.category]})` : ""}` : "-")}</td>
+              <td>${options.subscriptionFiltersById.get(s.id)?.maxPrice != null ? `$${options.subscriptionFiltersById.get(s.id)?.maxPrice}` : "-"}</td>
+              <td>${escapeHtml(formatRoomsList(options.subscriptionFiltersById.get(s.id)?.rooms))}</td>
+              <td>${s.intervalMinutes} мин</td>
+              <td>${s.enabled ? '✅' : '❌'}</td>
+              <td>
+                <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')" style="display:inline;">
+                  <input type="hidden" name="id" value="${s.id}" />
+                  <input type="hidden" name="returnTo" value="/ui/subscriptions" />
+                  <button type="submit" class="btn-danger" style="padding:5px 10px;">Удалить</button>
+                </form>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
       </table>
     </div>
     `,
@@ -537,32 +545,36 @@ function renderListingsPage(options: {
       <h2>Объявления</h2>
       <p>Последние 50 объявлений</p>
       <table data-sort-table="listings">
-        <tr>
-          <th>№</th>
-          <th>ID</th>
-          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="title">Название</th>
-          <th>Category</th>
-          <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="price">Цена</th>
-          <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="rooms">Комнаты</th>
-          <th>Ссылка</th>
-          <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="active">Активно</th>
-        </tr>
-        ${options.listings.map((l, index) => `
+        <thead>
           <tr>
-            <td>${index + 1}</td>
-            <td style="font-size:11px;">${l.id}</td>
-            <td>${escapeHtml(l.title)}</td>
-            <td>${escapeHtml(l.category ? `${l.category} ${options.categoryLabelByValue[l.category] ? `(${options.categoryLabelByValue[l.category]})` : ""}` : "-")}</td>
-            <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
-            <td>${l.rooms ?? "-"}</td>
-            <td>
-              <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
-              <br/>
-              <a href="/history/${l.id}" target="_blank" style="color:#666; text-decoration:none; font-size:12px;">история</a>
-            </td>
-            <td>${l.isActive ? "✅" : "❌"}</td>
+            <th>№</th>
+            <th>ID</th>
+            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="title">Название</th>
+            <th>Category</th>
+            <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="price">Цена</th>
+            <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="rooms">Комнаты</th>
+            <th>Ссылка</th>
+            <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="active">Активно</th>
           </tr>
-        `).join("")}
+        </thead>
+        <tbody>
+          ${options.listings.map((l, index) => `
+            <tr>
+              <td>${index + 1}</td>
+              <td style="font-size:11px;">${l.id}</td>
+              <td>${escapeHtml(l.title)}</td>
+              <td>${escapeHtml(l.category ? `${l.category} ${options.categoryLabelByValue[l.category] ? `(${options.categoryLabelByValue[l.category]})` : ""}` : "-")}</td>
+              <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
+              <td>${l.rooms ?? "-"}</td>
+              <td>
+                <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
+                <br/>
+                <a href="/history/${l.id}" target="_blank" style="color:#666; text-decoration:none; font-size:12px;">история</a>
+              </td>
+              <td>${l.isActive ? "✅" : "❌"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
       </table>
     </div>
     `,
