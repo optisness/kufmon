@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Partially implemented (service provides a minimal set of endpoints)
-**Last updated:** 2026-07-21
+**Last updated:** 2026-07-22
 
 ---
 
@@ -16,6 +16,7 @@ Current implementation notes:
 
 - The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, the seller-type backfill endpoint, UI pages and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
 - The admin UI is split into separate pages: `/ui` for overview, `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings.
+- In the subscriptions table, the active-state toggle is shown as `Enabled` or `Disabled` so the current state is unambiguous.
 - The listings page sorts price using the normalized numeric value, so the `"$"` prefix shown in the table does not break sorting.
 
 Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.

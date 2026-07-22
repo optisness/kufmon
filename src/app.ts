@@ -228,6 +228,8 @@ function renderAdminLayout(options: {
     input:focus, textarea:focus, select:focus { outline: none; border-color: #007bff; box-shadow: 0 0 4px rgba(0,123,255,0.25); }
     button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
     button:hover { background: #0056b3; }
+    .btn-success { background: #28a745; }
+    .btn-success:hover { background: #218838; }
     .btn-danger { background: #dc3545; }
     .btn-danger:hover { background: #c82333; }
     .price { font-weight: bold; color: #28a745; }
@@ -582,7 +584,7 @@ function renderSubscriptionsPage(options: {
                 <form method="POST" action="/subscriptions/toggle" style="display:inline;">
                   <input type="hidden" name="id" value="${s.id}" />
                   <input type="hidden" name="returnTo" value="/ui/subscriptions" />
-                  <button type="submit" class="${s.enabled ? "" : "btn-danger"}" style="padding:5px 10px;">${s.enabled ? "Disable" : "Enable"}</button>
+                  <button type="submit" class="${s.enabled ? "btn-success" : "btn-danger"}" style="padding:5px 10px;">${s.enabled ? "Enabled" : "Disabled"}</button>
                 </form>
               </td>
               <td>
