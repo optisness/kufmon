@@ -57,3 +57,6 @@ export function buildPaginationUrl(
   return suffix ? `${basePath}?${suffix}` : basePath;
 }
 
+export function getDisplayRowNumber(meta: PaginationMeta, rowIndex: number) {
+  return meta.offset + rowIndex + 1;
+}

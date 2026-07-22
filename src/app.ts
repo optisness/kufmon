@@ -13,8 +13,17 @@ import { buildTelegramListingUrl } from "./telegramMessage.js";
 import {
   buildPaginationMeta,
   buildPaginationUrl,
+  getDisplayRowNumber,
   parsePositiveInt,
 } from "./adminPagination.js";
+import {
+  buildSortUrl,
+  getListingsOrderBy,
+  getSubscriptionsOrderBy,
+  getUsersOrderBy,
+  nextSortDirection,
+  parseAdminSortState,
+} from "./adminSorting.js";
 
 const app = Fastify({
   logger,
@@ -80,6 +89,16 @@ function renderPaginationControls(options: {
       </div>
     </div>
   `;
+}
+
+function renderSortableHeader(
+  label: string,
+  key: string,
+  type: "string" | "number" | "boolean",
+  currentSort: { key: string; direction: "asc" | "desc" } | null,
+) {
+  const sortDir = currentSort?.key === key ? currentSort.direction : undefined;
+  return `<th class="sortable" data-sortable="true" data-sort-type="${type}" data-sort-key="${escapeHtml(key)}"${sortDir ? ` data-sort-dir="${sortDir}"` : ""}>${escapeHtml(label)}</th>`;
 }
 
 function parseRoomsSelection(value: any) {
@@ -273,51 +292,20 @@ function renderAdminLayout(options: {
       return normalizeSortValue(cell.textContent, type);
     }
 
-    function renumberTable(table) {
-      const body = table.tBodies[0] || table;
-      const rows = Array.from(body.rows || body.querySelectorAll("tr"));
-      rows.forEach((row, index) => {
-        const firstCell = row.cells[0];
-        if (firstCell) {
-          firstCell.textContent = String(index + 1);
-        }
-      });
-    }
-
     function sortTableByHeader(th) {
-      const table = th.closest("table");
-      if (!table) return;
+      const key = th.dataset.sortKey;
+      if (!key) return;
 
-      const type = th.dataset.sortType || "string";
-      const headers = Array.from(table.querySelectorAll("th"));
-      const index = headers.indexOf(th);
-      if (index < 0) return;
+      const url = new URL(window.location.href);
+      const currentKey = url.searchParams.get("sort");
+      const currentDir = url.searchParams.get("dir") || "";
+      const nextDir = currentKey === key && currentDir === "asc" ? "desc" : "asc";
 
-      const currentDir = th.dataset.sortDir === "asc" ? "asc" : th.dataset.sortDir === "desc" ? "desc" : "";
-      const nextDir = currentDir === "asc" ? "desc" : "asc";
+      url.searchParams.set("sort", key);
+      url.searchParams.set("dir", nextDir);
+      url.searchParams.set("page", "1");
 
-      headers.forEach((header) => {
-        if (header !== th) {
-          delete header.dataset.sortDir;
-        }
-      });
-      th.dataset.sortDir = nextDir;
-
-      const body = table.tBodies[0] || table.createTBody();
-      const bodyRows = Array.from(body.rows);
-      const sortedRows = bodyRows.sort((left, right) => {
-        const leftCell = left.cells[index];
-        const rightCell = right.cells[index];
-        const leftValue = getSortValue(leftCell, type);
-        const rightValue = getSortValue(rightCell, type);
-
-        if (leftValue < rightValue) return nextDir === "asc" ? -1 : 1;
-        if (leftValue > rightValue) return nextDir === "asc" ? 1 : -1;
-        return 0;
-      });
-
-      sortedRows.forEach((row) => body.appendChild(row));
-      renumberTable(table);
+      window.location.href = url.toString();
     }
 
     function initTableSorting() {
@@ -386,6 +374,7 @@ function renderUsersPage(options: {
   returnTo: string;
   pagination: ReturnType<typeof buildPaginationMeta>;
   query: Record<string, unknown>;
+  currentSort: { key: string; direction: "asc" | "desc" } | null;
 }) {
   return renderAdminLayout({
     title: "Пользователи",
@@ -412,15 +401,15 @@ function renderUsersPage(options: {
         <thead>
           <tr>
             <th>№</th>
-            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Имя / название</th>
-            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="chatId">Chat ID</th>
+            ${renderSortableHeader("Имя / название", "name", "string", options.currentSort)}
+            ${renderSortableHeader("Chat ID", "chatId", "string", options.currentSort)}
             <th></th>
           </tr>
         </thead>
         <tbody>
           ${options.users.map((u, index) => `
             <tr>
-              <td>${index + 1}</td>
+              <td>${getDisplayRowNumber(options.pagination, index)}</td>
               <td>${escapeHtml(u.name?.trim() || "-")}</td>
               <td>${escapeHtml(u.telegramChatId)}</td>
               <td>
@@ -526,6 +515,7 @@ function renderSubscriptionsPage(options: {
   returnTo: string;
   pagination: ReturnType<typeof buildPaginationMeta>;
   query: Record<string, unknown>;
+  currentSort: { key: string; direction: "asc" | "desc" } | null;
 }) {
   return renderAdminLayout({
     title: "Подписки",
@@ -545,14 +535,14 @@ function renderSubscriptionsPage(options: {
         <thead>
           <tr>
             <th>№</th>
-            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Name</th>
-            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="owner">Owner</th>
+            ${renderSortableHeader("Name", "name", "string", options.currentSort)}
+            ${renderSortableHeader("Owner", "owner", "string", options.currentSort)}
             <th>Category</th>
-            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="seller">Seller</th>
+            ${renderSortableHeader("Seller", "seller", "string", options.currentSort)}
             <th>Max price</th>
             <th>Rooms</th>
-            <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="interval">Interval</th>
-            <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="enabled">Enabled</th>
+            ${renderSortableHeader("Interval", "interval", "number", options.currentSort)}
+            ${renderSortableHeader("Enabled", "enabled", "boolean", options.currentSort)}
             <th>Delete</th>
             <th>ID</th>
           </tr>
@@ -560,7 +550,7 @@ function renderSubscriptionsPage(options: {
         <tbody>
           ${options.subscriptions.map((s, index) => `
             <tr>
-              <td>${index + 1}</td>
+              <td>${getDisplayRowNumber(options.pagination, index)}</td>
               <td>${escapeHtml(s.name)}</td>
               <td>${escapeHtml(s.userId ? getUserDisplayName(options.usersById.get(s.userId)) : "-")}</td>
               <td>${escapeHtml(s.category ? (options.categoryLabelByValue[s.category] ?? "-") : "-")}</td>
@@ -603,6 +593,7 @@ function renderListingsPage(options: {
   categoryLabelByValue: Record<string, string>;
   pagination: ReturnType<typeof buildPaginationMeta>;
   query: Record<string, unknown>;
+  currentSort: { key: string; direction: "asc" | "desc" } | null;
 }) {
   return renderAdminLayout({
     title: "Объявления",
@@ -616,20 +607,20 @@ function renderListingsPage(options: {
           <tr>
             <th>№</th>
             <th>ID</th>
-            <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="title">Название</th>
-            <th>Category</th>
-            <th>Seller</th>
-            <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="price">Цена</th>
-            <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="rooms">Комнаты</th>
-            <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="missingCount">Неудачных попыток</th>
+            ${renderSortableHeader("Название", "title", "string", options.currentSort)}
+            ${renderSortableHeader("Category", "category", "string", options.currentSort)}
+            ${renderSortableHeader("Seller", "seller", "string", options.currentSort)}
+            ${renderSortableHeader("Цена", "price", "number", options.currentSort)}
+            ${renderSortableHeader("Комнаты", "rooms", "number", options.currentSort)}
+            ${renderSortableHeader("Неудачных попыток", "missingCount", "number", options.currentSort)}
             <th>Ссылка</th>
-            <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="active">Активно</th>
+            ${renderSortableHeader("Активно", "active", "boolean", options.currentSort)}
           </tr>
         </thead>
         <tbody>
           ${options.listings.map((l, index) => `
             <tr>
-              <td>${index + 1}</td>
+              <td>${getDisplayRowNumber(options.pagination, index)}</td>
               <td style="font-size:11px;">${l.id}</td>
               <td>${escapeHtml(l.title)}</td>
               <td>${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</td>
@@ -779,14 +770,12 @@ app.get("/ui/users", async (req: any, reply) => {
   const page = parsePositiveInt(req.query?.page, 1);
   const totalItems = await prisma.user.count();
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
-  const users = sortUsers(await prisma.user.findMany({
+  const sortState = parseAdminSortState(req.query ?? {}, ["name", "chatId"]);
+  const users = await prisma.user.findMany({
     skip: pagination.offset,
     take: pagination.pageSize,
-    orderBy: [
-      { name: "asc" },
-      { telegramChatId: "asc" },
-    ],
-  }));
+    orderBy: getUsersOrderBy(sortState),
+  });
   const returnTo = buildPaginationUrl("/ui/users", req.query ?? {}, pagination.page, pagination.pageSize);
 
   reply.type("text/html; charset=utf-8").send(renderUsersPage({
@@ -794,6 +783,7 @@ app.get("/ui/users", async (req: any, reply) => {
     returnTo,
     pagination,
     query: req.query ?? {},
+    currentSort: sortState,
   }));
 });
 
@@ -804,14 +794,12 @@ app.get("/ui/subscriptions", async (req: any, reply) => {
   const usersById = new Map(users.map((user) => [user.id, user]));
   const totalItems = await prisma.subscription.count();
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
-  const subscriptions = sortSubscriptions(
-    await prisma.subscription.findMany({
-      skip: pagination.offset,
-      take: pagination.pageSize,
-      orderBy: { createdAt: "desc" },
-    }),
-    usersById,
-  );
+  const sortState = parseAdminSortState(req.query ?? {}, ["name", "owner", "seller", "interval", "enabled"]);
+  const subscriptions = await prisma.subscription.findMany({
+    skip: pagination.offset,
+    take: pagination.pageSize,
+    orderBy: getSubscriptionsOrderBy(sortState),
+  });
   const subscriptionFiltersById = new Map(
     subscriptions.map((subscription) => [subscription.id, getSubscriptionFilters(subscription)]),
   );
@@ -846,6 +834,7 @@ app.get("/ui/subscriptions", async (req: any, reply) => {
     returnTo: buildPaginationUrl("/ui/subscriptions", req.query ?? {}, pagination.page, pagination.pageSize),
     pagination,
     query: req.query ?? {},
+    currentSort: sortState,
   }));
 });
 
@@ -862,6 +851,7 @@ app.get("/ui/listings", async (req: any, reply) => {
     },
   });
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
+  const sortState = parseAdminSortState(req.query ?? {}, ["title", "category", "seller", "price", "rooms", "missingCount", "active"]);
   const listings = await prisma.listing.findMany({
     skip: pagination.offset,
     take: pagination.pageSize,
@@ -871,7 +861,7 @@ app.get("/ui/listings", async (req: any, reply) => {
         { lastSeenAt: { gte: cutoff } },
       ],
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: getListingsOrderBy(sortState),
   });
   const categoryOptions = [
     { value: KUFAR_CATEGORIES.apartments, label: "Квартира" },
@@ -888,6 +878,7 @@ app.get("/ui/listings", async (req: any, reply) => {
     categoryLabelByValue,
     pagination,
     query: req.query ?? {},
+    currentSort: sortState,
   }));
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPaginationMeta, buildPaginationUrl, parsePositiveInt } from "../src/adminPagination.js";
+import { buildPaginationMeta, buildPaginationUrl, getDisplayRowNumber, parsePositiveInt } from "../src/adminPagination.js";
 
 describe("admin pagination helpers", () => {
   it("clamps and describes pagination metadata", () => {
@@ -12,6 +12,13 @@ describe("admin pagination helpers", () => {
     expect(meta.to).toBe(123);
     expect(meta.hasPrevious).toBe(true);
     expect(meta.hasNext).toBe(false);
+  });
+
+  it("numbers rows across pages using the page offset", () => {
+    const meta = buildPaginationMeta(123, 2, 50);
+
+    expect(getDisplayRowNumber(meta, 0)).toBe(51);
+    expect(getDisplayRowNumber(meta, 9)).toBe(60);
   });
 
   it("builds pagination urls while preserving existing query params", () => {

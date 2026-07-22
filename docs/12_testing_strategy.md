@@ -40,6 +40,7 @@ Examples:
 - NotificationBuilder
 - Admin table sorting helpers for users, subscriptions, and listings
 - Admin pagination helpers and page navigation
+- Admin sort URL helpers and row numbering across pages
 
 No database required.
 
@@ -349,6 +350,7 @@ Verify:
 - status codes
 - pagination
 - cursor pagination against Kufar search results
+- sort and pagination query preservation
 - idempotency
 
 ---
