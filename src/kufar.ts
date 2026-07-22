@@ -131,10 +131,6 @@ function matchesUserSubscriptions(
   );
 }
 
-function buildUserAlertLine(ad: { category: string | null; title: string; price: number; rooms: number | null; url: string }) {
-  return `🔥 [${ad.category ?? "?"}] ${ad.title}\n${ad.price} | ${ad.rooms ?? "?"}к\n${ad.url}`;
-}
-
 export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]) {
   const users = await prisma.user.findMany();
   const subscriptions = await prisma.subscription.findMany({
@@ -447,6 +443,14 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
         });
       }
     }
+  });
+
+  const staleCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  await prisma.listing.deleteMany({
+    where: {
+      isActive: false,
+      lastSeenAt: { lt: staleCutoff },
+    },
   });
 
   let notificationsSent = 0;

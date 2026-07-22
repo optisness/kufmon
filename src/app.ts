@@ -8,6 +8,7 @@ import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } from "./subscriptions.js";
 import { formatEventSummary } from "./listingEvents.js";
+import { buildTelegramListingUrl } from "./telegramMessage.js";
 
 const app = Fastify({
   logger,
@@ -48,8 +49,14 @@ function parseRoomsSelection(value: any) {
   const source = Array.isArray(value) ? value : value == null ? [] : [value];
   return source
     .flatMap((item) => String(item).split(","))
-    .map((item) => Number(item.trim()))
-    .filter((room) => Number.isFinite(room) && room > 0);
+    .map((item) => {
+      const text = item.trim();
+      if (!text) return null;
+      if (text === "5+") return "5+";
+      const parsed = Number(text);
+      return Number.isFinite(parsed) && parsed > 0 ? String(Math.trunc(parsed)) : null;
+    })
+    .filter((room): room is string => room != null);
 }
 
 function splitMessageChunks(text: string, chunkSize = 3500) {
@@ -60,13 +67,17 @@ function buildListingPreview(listing: any, categoryLabelByValue: Record<string, 
   const categoryLabel = listing.category
     ? `${listing.category}${categoryLabelByValue[listing.category] ? ` (${categoryLabelByValue[listing.category]})` : ""}`
     : "-";
+  const canonicalUrl = buildTelegramListingUrl({
+    url: listing.url,
+    category: listing.category ?? null,
+  });
 
   return [
     `${listing.title}`,
     `Цена: ${listing.price}`,
     `Комнаты: ${listing.rooms ?? "-"}`,
     `Категория: ${categoryLabel}`,
-    `Ссылка: ${listing.url}`,
+    `Ссылка: ${canonicalUrl}`,
   ].join("\n");
 }
 
@@ -112,6 +123,17 @@ function sortSubscriptions(subscriptions: any[], usersById: Map<string, any>) {
     }
 
     return compareStrings(String(a?.createdAt ?? ""), String(b?.createdAt ?? ""));
+  });
+}
+
+async function cleanupStaleListings() {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  await prisma.listing.deleteMany({
+    where: {
+      isActive: false,
+      lastSeenAt: { lt: cutoff },
+    },
   });
 }
 
@@ -226,8 +248,17 @@ app.get("/sync", async (req: any) => {
 });
 
 app.get("/ui", async (req, reply) => {
+  await cleanupStaleListings();
+
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const listings = await prisma.listing.findMany({
     take: 50,
+    where: {
+      OR: [
+        { isActive: true },
+        { lastSeenAt: { gte: cutoff } },
+      ],
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -296,6 +327,16 @@ app.get("/ui", async (req, reply) => {
     .btn-danger:hover { background: #c82333; }
     .price { font-weight: bold; color: #28a745; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .compact-form { display: grid; gap: 10px; }
+    .users-form { grid-template-columns: 1fr 1fr auto; align-items: end; }
+    .users-form .form-group { margin-bottom: 0; }
+    .subscriptions-form { max-width: 900px; }
+    .subscriptions-form .form-row { gap: 10px; }
+    .compact-grid.subscriptions-main { grid-template-columns: 1.4fr 1.2fr 1fr 1.2fr; }
+    .compact-grid.subscriptions-extra { grid-template-columns: 1fr 1fr auto; }
+    .compact-form .form-group { margin-bottom: 0; }
+    .rooms-options { display:flex; gap:12px; flex-wrap:wrap; padding-top:6px; }
+    .rooms-options label { display:flex; align-items:center; gap:6px; font-weight:normal; margin-bottom:0; }
   </style>
 </head>
 
@@ -319,10 +360,10 @@ app.get("/ui", async (req, reply) => {
     <div class="section">
       <h2>Пользователи</h2>
       <h3>Создать пользователя</h3>
-      <form method="POST" action="/users" style="max-width: 400px;">
+      <form method="POST" action="/users" class="compact-form users-form" style="max-width: 900px;">
         <div class="form-group">
           <label>Имя / название пользователя</label>
-          <input name="name" placeholder="Например, Иван или Агентство А" />
+          <input name="name" placeholder="Например, Иван или Агентство А" required />
         </div>
         <div class="form-group">
           <label>Telegram Chat ID</label>
@@ -359,16 +400,15 @@ app.get("/ui", async (req, reply) => {
       <h2>Подписки</h2>
       <p><em>Подписка привязана к пользователю и задаёт дополнительные фильтры для уведомлений.</em></p>
       <h3>Создать подписку</h3>
-      <form method="POST" action="/subscriptions" style="max-width: 600px;">
+      <form method="POST" action="/subscriptions" class="compact-form subscriptions-form" style="max-width: 900px;">
         <div class="form-row">
           <div class="form-group">
             <label>Название подписки</label>
             <input name="name" placeholder="e.g., Minsk 2 rooms" required />
           </div>
           <div class="form-group">
-            <label>User ID (optional)</label>
-            <select name="userId">
-              <option value="">Глобальная подписка</option>
+            <label>User ID</label>
+            <select name="userId" required>
               ${userOptions}
             </select>
           </div>
@@ -376,7 +416,7 @@ app.get("/ui", async (req, reply) => {
         <div class="form-row">
           <div class="form-group">
             <label>Интервал (минуты)</label>
-            <input name="intervalMinutes" type="number" value="30" />
+            <input name="intervalMinutes" type="number" value="30" required />
           </div>
           <div class="form-group">
             <label>Категория поиска</label>
@@ -400,8 +440,8 @@ app.get("/ui", async (req, reply) => {
           </div>
           <div class="form-group">
             <label>Rooms (optional)</label>
-            <div style="display:flex; gap:12px; flex-wrap:wrap; padding-top:6px;">
-              ${[1, 2, 3, 4].map((room) => `
+            <div class="rooms-options">
+              ${[1, 2, 3, 4, "5+"].map((room) => `
                 <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin-bottom:0;">
                   <input type="checkbox" name="rooms" value="${room}" />
                   ${room}
@@ -473,7 +513,7 @@ app.get("/ui", async (req, reply) => {
             <td class="price">${l.price}</td>
             <td>${l.rooms ?? "-"}</td>
             <td>
-              <a href="${escapeHtml(l.url)}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
+              <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
               <br/>
               <a href="/history/${l.id}" target="_blank" style="color:#666; text-decoration:none; font-size:12px;">история</a>
             </td>

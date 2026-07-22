@@ -15,6 +15,7 @@ const prismaMock = {
     update: vi.fn(),
     upsert: vi.fn(),
     updateMany: vi.fn(),
+    deleteMany: vi.fn(),
   },
   adEvent: {
     create: vi.fn(),
@@ -415,6 +416,22 @@ describe('Kufar sync', () => {
       matchesSubscriptionListing(
         { category: '1010', maxPrice: 80000, rooms: [1, 2] },
         { category: '1050', price: 75000, rooms: 2 },
+      ),
+    ).toBe(false);
+  });
+
+  it('matches 5+ room subscriptions against listings with five or more rooms', () => {
+    expect(
+      matchesSubscriptionListing(
+        { category: '1010', rooms: ['5+'] },
+        { category: '1010', price: 75000, rooms: 5 },
+      ),
+    ).toBe(true);
+
+    expect(
+      matchesSubscriptionListing(
+        { category: '1010', rooms: ['5+'] },
+        { category: '1010', price: 75000, rooms: 4 },
       ),
     ).toBe(false);
   });

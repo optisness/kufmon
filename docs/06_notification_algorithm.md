@@ -252,6 +252,7 @@ Builder performs no database access.
 
 Telegram notifications are sent as grouped blocks in the order `NEW`, `CHANGED`, `REMOVED`.
 Each listing card starts with a category-specific icon and accent, then shows the title, room count, current price, optional change summary, and a canonical Kufar page link.
+For `rooms`, the subscription filter supports the special `5+` value, which matches any listing with five or more rooms.
 
 ## NEW
 

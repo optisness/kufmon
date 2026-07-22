@@ -20,6 +20,15 @@ describe("telegramMessage", () => {
     ).toBe("https://re.kufar.by/vi/grodno/obmen/kvartiru/1059448809");
   });
 
+  it("falls back to a generic path for unknown categories", () => {
+    expect(
+      buildTelegramListingUrl({
+        url: "https://re.kufar.by/vi/1059448809",
+        category: "9999",
+      }),
+    ).toBe("https://re.kufar.by/vi/grodno/obmen/listing/1059448809");
+  });
+
   it("formats grouped telegram messages with category styling and change summary", () => {
     const message = formatTelegramBatchMessage([
       {

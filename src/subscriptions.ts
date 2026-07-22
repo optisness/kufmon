@@ -23,7 +23,7 @@ function parseMaybeJson(value: unknown) {
   return value;
 }
 
-function normalizeRoomsList(value: unknown): number[] {
+function normalizeRoomsList(value: unknown): string[] {
   const raw = Array.isArray(value)
     ? value
     : typeof value === "string"
@@ -36,8 +36,28 @@ function normalizeRoomsList(value: unknown): number[] {
         : [value];
 
   return raw
-    .map((room) => Number(room))
-    .filter((room) => Number.isFinite(room) && room > 0);
+    .map((room) => {
+      const text = String(room).trim();
+      if (!text) return null;
+      if (text === "5+") return "5+";
+
+      const parsed = Number(text);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return String(Math.trunc(parsed));
+      }
+
+      return null;
+    })
+    .filter((room): room is string => room != null);
+}
+
+function matchesRoomFilter(listingRooms: number | null, filterValue: string) {
+  if (filterValue === "5+") {
+    return listingRooms != null && listingRooms >= 5;
+  }
+
+  const parsed = Number(filterValue);
+  return Number.isFinite(parsed) && listingRooms === parsed;
 }
 
 export function getSubscriptionFilters(subscription: SubscriptionLike) {
@@ -86,9 +106,7 @@ export function matchesSubscriptionListing(subscription: SubscriptionLike, listi
   }
 
   if (filters.rooms.length > 0) {
-    if (!listing.rooms || !filters.rooms.includes(listing.rooms)) {
-      return false;
-    }
+    if (!filters.rooms.some((room) => matchesRoomFilter(listing.rooms ?? null, room))) return false;
   }
 
   return true;
