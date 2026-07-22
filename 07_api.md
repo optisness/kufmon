@@ -15,6 +15,7 @@ The API is independent of the implementation language and runtime.
 Current implementation notes:
 
 - The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, simple UI and user management endpoints): [src/app.ts](src/app.ts#L1).
+- The `/ui` admin page shows numbered tables, sorts users by display name, sorts subscriptions by name/owner/interval, and lets subscriptions pick an owner from existing users.
 
 Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.
 
@@ -70,6 +71,8 @@ Request:
 ```
 
 A subscription owns optional filter criteria and is attached to a single user. During synchronization, personal subscriptions are evaluated in addition to the user's default preferences.
+
+In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name.
 
 Response:
 

@@ -58,7 +58,7 @@ project-root/
 ```
 src/
 
-├── app.ts            # Fastify server and simple UI
+├── app.ts            # Fastify server and admin UI
 ├── cron.ts           # Scheduler for periodic sync
 ├── db.ts             # Prisma client initialization
 ├── kufar.ts          # Marketplace client and sync logic

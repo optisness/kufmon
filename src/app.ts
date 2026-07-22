@@ -11,6 +11,69 @@ const app = Fastify({
   logger,
 });
 
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getUserDisplayName(user: any) {
+  const name = typeof user?.name === "string" ? user.name.trim() : "";
+  return name || user?.telegramChatId || "—";
+}
+
+function compareStrings(a: string, b: string) {
+  return a.localeCompare(b, "ru", { sensitivity: "base", numeric: true });
+}
+
+function sortUsers(users: any[]) {
+  return [...users].sort((a, b) => {
+    const nameA = typeof a?.name === "string" ? a.name.trim() : "";
+    const nameB = typeof b?.name === "string" ? b.name.trim() : "";
+
+    if (nameA && nameB) {
+      const byName = compareStrings(nameA, nameB);
+      if (byName !== 0) {
+        return byName;
+      }
+    } else if (nameA || nameB) {
+      return nameA ? -1 : 1;
+    }
+
+    return compareStrings(String(a?.telegramChatId ?? ""), String(b?.telegramChatId ?? ""));
+  });
+}
+
+function sortSubscriptions(subscriptions: any[], usersById: Map<string, any>) {
+  return [...subscriptions].sort((a, b) => {
+    const byName = compareStrings(String(a?.name ?? ""), String(b?.name ?? ""));
+    if (byName !== 0) {
+      return byName;
+    }
+
+    const ownerA = a?.userId ? getUserDisplayName(usersById.get(a.userId)) : "";
+    const ownerB = b?.userId ? getUserDisplayName(usersById.get(b.userId)) : "";
+    if (ownerA || ownerB) {
+      if (!ownerA) return 1;
+      if (!ownerB) return -1;
+      const byOwner = compareStrings(ownerA, ownerB);
+      if (byOwner !== 0) {
+        return byOwner;
+      }
+    }
+
+    const byInterval = Number(a?.intervalMinutes ?? 0) - Number(b?.intervalMinutes ?? 0);
+    if (byInterval !== 0) {
+      return byInterval;
+    }
+
+    return compareStrings(String(a?.createdAt ?? ""), String(b?.createdAt ?? ""));
+  });
+}
+
 app.get("/", async (req, reply) => {
   const html = `
 <!DOCTYPE html>
@@ -127,8 +190,20 @@ app.get("/ui", async (req, reply) => {
     orderBy: { createdAt: "desc" },
   });
 
-  const users = await prisma.user.findMany();
-  const subscriptions = await prisma.subscription.findMany({ take: 50, orderBy: { createdAt: 'desc' } });
+  const users = sortUsers(await prisma.user.findMany());
+  const usersById = new Map(users.map((user) => [user.id, user]));
+  const subscriptions = sortSubscriptions(
+    await prisma.subscription.findMany({ take: 50, orderBy: { createdAt: "desc" } }),
+    usersById,
+  );
+  const userOptions = users
+    .map((user) => {
+      const label = user.name?.trim()
+        ? `${user.name.trim()} (${user.telegramChatId})`
+        : user.telegramChatId;
+      return `<option value="${escapeHtml(user.id)}">${escapeHtml(label)}</option>`;
+    })
+    .join("");
 
   const html = `
 <!DOCTYPE html>
@@ -150,11 +225,15 @@ app.get("/ui", async (req, reply) => {
     table { border-collapse: collapse; width: 100%; margin-top: 10px; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { background: #f5f5f5; font-weight: bold; }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable::after { content: " ↕"; color: #888; font-weight: normal; }
+    th.sortable[data-sort-dir="asc"]::after { content: " ↑"; color: #007bff; }
+    th.sortable[data-sort-dir="desc"]::after { content: " ↓"; color: #007bff; }
     tr:hover { background: #f9f9f9; }
     .form-group { margin-bottom: 15px; }
     label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
-    input, textarea { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: Arial; width: 100%; box-sizing: border-box; }
-    input:focus, textarea:focus { outline: none; border-color: #007bff; box-shadow: 0 0 4px rgba(0,123,255,0.25); }
+    input, textarea, select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: Arial; width: 100%; box-sizing: border-box; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #007bff; box-shadow: 0 0 4px rgba(0,123,255,0.25); }
     button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
     button:hover { background: #0056b3; }
     .btn-danger { background: #dc3545; }
@@ -186,6 +265,10 @@ app.get("/ui", async (req, reply) => {
       <h3>Создать пользователя</h3>
       <form method="POST" action="/users" style="max-width: 400px;">
         <div class="form-group">
+          <label>Имя / название пользователя</label>
+          <input name="name" placeholder="Например, Иван или Агентство А" />
+        </div>
+        <div class="form-group">
           <label>Telegram Chat ID</label>
           <input name="chatId" placeholder="e.g., 123456789" required />
         </div>
@@ -201,18 +284,22 @@ app.get("/ui", async (req, reply) => {
       </form>
 
       <h3>Существующие пользователи</h3>
-      <table>
+      <table data-sort-table="users">
         <tr>
-          <th>Chat ID</th>
-          <th>Max Price</th>
-          <th>Rooms</th>
+          <th>№</th>
+          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Имя / название</th>
+          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="chatId">Chat ID</th>
+          <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="maxPrice">Max Price</th>
+          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="rooms">Rooms</th>
           <th></th>
         </tr>
-        ${users.map(u => `
+        ${users.map((u, index) => `
           <tr>
-            <td>${u.telegramChatId}</td>
+            <td>${index + 1}</td>
+            <td>${escapeHtml(u.name?.trim() || "-")}</td>
+            <td>${escapeHtml(u.telegramChatId)}</td>
             <td>${u.maxPrice ?? "-"}</td>
-            <td>${u.rooms.join(", ") || "-"}</td>
+            <td>${escapeHtml((u.rooms || []).join(", ") || "-")}</td>
             <td>
               <form method="POST" action="/users/delete" onsubmit="return confirm('Удалить пользователя?')" style="display:inline;">
                 <input type="hidden" name="id" value="${u.id}" />
@@ -236,7 +323,10 @@ app.get("/ui", async (req, reply) => {
           </div>
           <div class="form-group">
             <label>User ID (optional)</label>
-            <input name="userId" placeholder="Оставить пусто для глобальной подписки" />
+            <select name="userId">
+              <option value="">Глобальная подписка</option>
+              ${userOptions}
+            </select>
           </div>
         </div>
         <div class="form-row">
@@ -253,23 +343,25 @@ app.get("/ui", async (req, reply) => {
       </form>
 
       <h3>Существующие подписки</h3>
-      <table>
+      <table data-sort-table="subscriptions">
         <tr>
+          <th>№</th>
           <th>ID</th>
-          <th>Name</th>
-          <th>Owner</th>
-          <th>Interval</th>
+          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Name</th>
+          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="owner">Owner</th>
+          <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="interval">Interval</th>
           <th>Filters</th>
-          <th>Enabled</th>
+          <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="enabled">Enabled</th>
           <th></th>
         </tr>
-        ${subscriptions.map(s => `
+        ${subscriptions.map((s, index) => `
           <tr>
+            <td>${index + 1}</td>
             <td style="font-size:12px; max-width:100px; word-break:break-all;">${s.id}</td>
-            <td>${s.name}</td>
-            <td>${s.userId ?? '-'}</td>
+            <td>${escapeHtml(s.name)}</td>
+            <td>${escapeHtml(s.userId ? getUserDisplayName(usersById.get(s.userId)) : "-")}</td>
             <td>${s.intervalMinutes} мин</td>
-            <td><code style="font-size:11px;">${s.filters ? JSON.stringify(s.filters) : '-'}</code></td>
+            <td><code style="font-size:11px;">${s.filters ? escapeHtml(JSON.stringify(s.filters)) : '-'}</code></td>
             <td>${s.enabled ? '✅' : '❌'}</td>
             <td>
               <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')" style="display:inline;">
@@ -285,23 +377,25 @@ app.get("/ui", async (req, reply) => {
     <div class="section">
       <h2>Объявления</h2>
       <p>Последние 50 объявлений</p>
-      <table>
+      <table data-sort-table="listings">
         <tr>
+          <th>№</th>
           <th>ID</th>
-          <th>Название</th>
-          <th>Цена</th>
-          <th>Комнаты</th>
+          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="title">Название</th>
+          <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="price">Цена</th>
+          <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="rooms">Комнаты</th>
           <th>Ссылка</th>
-          <th>Активно</th>
+          <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="active">Активно</th>
         </tr>
-        ${listings.map(l => `
+        ${listings.map((l, index) => `
           <tr>
+            <td>${index + 1}</td>
             <td style="font-size:11px;">${l.id}</td>
-            <td>${l.title}</td>
+            <td>${escapeHtml(l.title)}</td>
             <td class="price">${l.price}</td>
             <td>${l.rooms ?? "-"}</td>
             <td>
-              <a href="${l.url}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
+              <a href="${escapeHtml(l.url)}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
               <br/>
               <a href="/history/${l.id}" target="_blank" style="color:#666; text-decoration:none; font-size:12px;">история</a>
             </td>
@@ -313,6 +407,73 @@ app.get("/ui", async (req, reply) => {
   </div>
 
   <script>
+    function normalizeSortValue(value, type) {
+      const text = String(value ?? "").trim();
+
+      if (type === "number") {
+        const cleaned = text.replace(/[^\d,.-]/g, "").replace(",", ".");
+        const parsed = Number(cleaned);
+        return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+      }
+
+      if (type === "boolean") {
+        return /^(✅|true|yes|да|1)$/i.test(text) ? 1 : 0;
+      }
+
+      return text.toLocaleLowerCase("ru");
+    }
+
+    function renumberTable(table) {
+      const rows = Array.from(table.querySelectorAll("tr")).slice(1);
+      rows.forEach((row, index) => {
+        const firstCell = row.cells[0];
+        if (firstCell) {
+          firstCell.textContent = String(index + 1);
+        }
+      });
+    }
+
+    function sortTableByHeader(th) {
+      const table = th.closest("table");
+      if (!table) return;
+
+      const type = th.dataset.sortType || "string";
+      const headers = Array.from(table.querySelectorAll("th"));
+      const index = headers.indexOf(th);
+      if (index < 0) return;
+
+      const currentDir = th.dataset.sortDir === "asc" ? "asc" : th.dataset.sortDir === "desc" ? "desc" : "";
+      const nextDir = currentDir === "asc" ? "desc" : "asc";
+
+      headers.forEach((header) => {
+        if (header !== th) {
+          delete header.dataset.sortDir;
+        }
+      });
+      th.dataset.sortDir = nextDir;
+
+      const bodyRows = Array.from(table.querySelectorAll("tr")).slice(1);
+      const sortedRows = bodyRows.sort((left, right) => {
+        const leftCell = left.cells[index];
+        const rightCell = right.cells[index];
+        const leftValue = normalizeSortValue(leftCell ? leftCell.textContent : "", type);
+        const rightValue = normalizeSortValue(rightCell ? rightCell.textContent : "", type);
+
+        if (leftValue < rightValue) return nextDir === "asc" ? -1 : 1;
+        if (leftValue > rightValue) return nextDir === "asc" ? 1 : -1;
+        return 0;
+      });
+
+      sortedRows.forEach((row) => table.appendChild(row));
+      renumberTable(table);
+    }
+
+    function initTableSorting() {
+      document.querySelectorAll("th.sortable").forEach((th) => {
+        th.addEventListener("click", () => sortTableByHeader(th));
+      });
+    }
+
     async function runSync() {
       const el = document.getElementById("sync-result");
       el.innerText = " Синхронизация...";
@@ -326,6 +487,8 @@ app.get("/ui", async (req, reply) => {
         el.innerText = " ❌ Ошибка";
       }
     }
+
+    initTableSorting();
   </script>
 </body>
 </html>
@@ -343,6 +506,7 @@ app.post("/users", async (req: any, reply) => {
 
   await prisma.user.create({
     data: {
+      name: body.name ? String(body.name).trim() || null : null,
       telegramChatId: body.chatId,
       maxPrice: body.maxPrice ? Number(body.maxPrice) : null,
       rooms,

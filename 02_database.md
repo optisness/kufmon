@@ -17,6 +17,9 @@
 
 Пользователи SaaS.
 
+-   `name` is an optional display name for the user.
+-   The admin UI uses it to label users and subscription owners.
+
   Поле         Тип            Описание
   ------------ -------------- ---------------
   id           BIGSERIAL PK   идентификатор
@@ -93,6 +96,8 @@ CHECK гарантирует заполнение полей согласно `t
 # search_subscriptions
 
 Поисковые подписки.
+
+-   In the admin UI, `user_id` is selected from existing users instead of being entered manually.
 
   Поле
   -------------------

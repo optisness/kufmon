@@ -23,7 +23,7 @@ Future versions will support:
 
 - Multiple marketplaces.
 - Email notifications.
-- Web interface.
+- Admin UI at `/ui`.
 - User accounts.
 - Paid subscriptions.
 
