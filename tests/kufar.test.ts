@@ -145,11 +145,18 @@ describe('Kufar sync', () => {
     ]);
 
     const result = await saveKufarAds();
+    const message = sendTelegramMock.mock.calls[0]?.[0];
 
     expect(result).toBe(1);
     expect(prismaMock.listing.create).toHaveBeenCalledTimes(1);
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
+    expect(message).toContain('🆕 Новые');
+    expect(message).toContain('🏢 🔵 Квартира');
+    expect(message).toContain('Test listing');
+    expect(message).toContain('Комнат: 2к');
+    expect(message).toContain('Цена: 400');
+    expect(message).toContain('https://re.kufar.by/vi/grodno/obmen/kvartiru/1');
     expect(metrics.adsFetched).toBe(1);
     expect(metrics.newListings).toBe(1);
     expect(metrics.alertsSent).toBe(1);
@@ -200,11 +207,17 @@ describe('Kufar sync', () => {
     ]);
 
     const result = await saveKufarAds();
+    const message = sendTelegramMock.mock.calls[0]?.[0];
 
     expect(result).toBe(1);
     expect(prismaMock.listing.update).toHaveBeenCalledTimes(1);
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
+    expect(message).toContain('♻️ Измененные');
+    expect(message).toContain('Test listing');
+    expect(message).toContain('Изменено: цена 600 → 500');
+    expect(message).toContain('описание добавлено');
+    expect(message).toContain('фото добавлено');
     expect(metrics.adsFetched).toBe(1);
     expect(metrics.changedListings).toBe(1);
     expect(metrics.priceChanges).toBe(1);

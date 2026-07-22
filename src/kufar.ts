@@ -3,6 +3,7 @@ import { sendTelegram } from "./telegram.js";
 import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
 import { matchesSubscriptionListing } from "./subscriptions.js";
+import { formatTelegramBatchMessage, type TelegramEventType } from "./telegramMessage.js";
 import {
   buildChangedEventPayload,
   buildContentHash,
@@ -145,11 +146,26 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
   const categoriesToSync = await resolveSyncCategories(options);
   const currentIds = new Set<string>();
 
-  const userAlerts: Record<string, string[]> = {};
+  const userAlerts: Record<string, Record<TelegramEventType, Array<{
+    category: string | null;
+    title: string;
+    rooms: number | null;
+    price: number;
+    url: string;
+    changes?: Array<{
+      field: "price" | "description" | "imageUrl" | "rooms";
+      old: string | number | null;
+      new: string | number | null;
+    }>;
+  }>>> = {};
   const subscriptionsByUser: Record<string, any[]> = {};
 
   for (const user of users) {
-    userAlerts[user.id] = [];
+    userAlerts[user.id] = {
+      NEW: [],
+      CHANGED: [],
+      REMOVED: [],
+    };
     subscriptionsByUser[user.id] = [];
   }
 
@@ -250,13 +266,13 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
               category: ad.snapshot.category,
             })
           ) {
-            userAlerts[user.id].push(buildUserAlertLine({
+            userAlerts[user.id].NEW.push({
               category: ad.snapshot.category,
               title: ad.snapshot.title,
-              price: ad.snapshot.price,
               rooms: ad.snapshot.rooms,
+              price: ad.snapshot.price,
               url: ad.snapshot.url,
-            }));
+            });
           }
         }
 
@@ -291,13 +307,13 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
               category: ad.snapshot.category,
             })
           ) {
-            userAlerts[user.id].push(buildUserAlertLine({
+            userAlerts[user.id].NEW.push({
               category: ad.snapshot.category,
               title: ad.snapshot.title,
-              price: ad.snapshot.price,
               rooms: ad.snapshot.rooms,
+              price: ad.snapshot.price,
               url: ad.snapshot.url,
-            }));
+            });
           }
         }
 
@@ -346,21 +362,22 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
           },
         });
 
-        const oldPrice = existing.price;
-        const newPrice = ad.snapshot.price;
-        if (newPrice < oldPrice) {
-          for (const user of users) {
-            if (
-              matchesUserSubscriptions(subscriptionsByUser, user.id, {
-                price: ad.snapshot.price,
-                rooms: ad.snapshot.rooms,
-                category: ad.snapshot.category,
-              })
-            ) {
-              userAlerts[user.id].push(
-                `🔽 Цена упала!\n[${ad.snapshot.category ?? "?"}] ${oldPrice} → ${newPrice}\n${ad.snapshot.url}`,
-              );
-            }
+        for (const user of users) {
+          if (
+            matchesUserSubscriptions(subscriptionsByUser, user.id, {
+              price: ad.snapshot.price,
+              rooms: ad.snapshot.rooms,
+              category: ad.snapshot.category,
+            })
+          ) {
+            userAlerts[user.id].CHANGED.push({
+              category: ad.snapshot.category,
+              title: ad.snapshot.title,
+              rooms: ad.snapshot.rooms,
+              price: ad.snapshot.price,
+              url: ad.snapshot.url,
+              changes,
+            });
           }
         }
       }
@@ -403,6 +420,24 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
             ),
           },
         });
+
+        for (const user of users) {
+          if (
+            matchesUserSubscriptions(subscriptionsByUser, user.id, {
+              price: listing.price,
+              rooms: listing.rooms ?? null,
+              category: listing.category ?? null,
+            })
+          ) {
+            userAlerts[user.id].REMOVED.push({
+              category: listing.category ?? null,
+              title: listing.title,
+              rooms: listing.rooms ?? null,
+              price: listing.price,
+              url: listing.url,
+            });
+          }
+        }
       } else {
         await tx.listing.update({
           where: { id: listing.id },
@@ -419,9 +454,15 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
   for (const user of users) {
     const alerts = userAlerts[user.id];
 
-    if (!alerts || alerts.length === 0) continue;
+    const flattened = [
+      ...alerts.NEW.map((item) => ({ ...item, eventType: "NEW" as const })),
+      ...alerts.CHANGED.map((item) => ({ ...item, eventType: "CHANGED" as const })),
+      ...alerts.REMOVED.map((item) => ({ ...item, eventType: "REMOVED" as const })),
+    ];
 
-    const text = alerts.join("\n\n");
+    if (flattened.length === 0) continue;
+
+    const text = formatTelegramBatchMessage(flattened);
     const chunks = text.match(/[\s\S]{1,3500}/g) || [];
 
     for (const chunk of chunks) {

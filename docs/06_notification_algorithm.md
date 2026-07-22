@@ -250,6 +250,9 @@ Builder performs no database access.
 
 # Message Templates
 
+Telegram notifications are sent as grouped blocks in the order `NEW`, `CHANGED`, `REMOVED`.
+Each listing card starts with a category-specific icon and accent, then shows the title, room count, current price, optional change summary, and a canonical Kufar page link.
+
 ## NEW
 
 Contains:
@@ -260,6 +263,7 @@ Contains:
 - rooms
 - location
 - link
+- category icon and label
 
 ---
 
@@ -270,6 +274,10 @@ Contains:
 - changed fields only
 - previous value
 - new value
+- title
+- rooms
+- current price
+- canonical link
 
 Example:
 
