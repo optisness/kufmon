@@ -1,6 +1,7 @@
 import { existsSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 
 const cwd = process.cwd();
 const startDir = dirname(fileURLToPath(import.meta.url));
@@ -61,6 +62,14 @@ if (!root) {
 process.chdir(root);
 console.log(`Starting from root: ${root}`);
 console.log(`Loading dist app from: ${distPath}`);
+
+try {
+  console.log('Applying Prisma migrations...');
+  execSync('npx prisma migrate deploy', { stdio: 'inherit', cwd: root });
+} catch (err) {
+  console.error('Failed to apply Prisma migrations:', err);
+  throw err;
+}
 
 try {
   await import(`file://${distPath}`);

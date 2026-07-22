@@ -174,6 +174,10 @@ Initialize Prisma
 
 ↓
 
+Apply database migrations
+
+↓
+
 Register services
 
 ↓
@@ -190,6 +194,8 @@ Listen HTTP
 ```
 
 Application exits immediately if any mandatory dependency is unavailable.
+
+For Render deployments started via `npm start`, the bootstrap script runs `prisma migrate deploy` before importing the application so schema changes reach the production database automatically.
 
 ---
 
