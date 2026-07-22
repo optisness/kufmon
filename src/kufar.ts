@@ -214,6 +214,27 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     });
 
     const isNew = !existing;
+    const priceChanged = !!(existing && existing.price !== price);
+
+    // Ensure the listing row exists before writing any dependent rows (price history has FK).
+    await prisma.listing.upsert({
+      where: { id },
+      update: {
+        title,
+        price,
+        lastSeenAt: new Date(),
+        isActive: true,
+      },
+      create: {
+        id,
+        title,
+        price,
+        currency: "BYN",
+        url: `https://re.kufar.by/vi/${id}`,
+        location: `${ad.c?.[1]}, ${ad.c?.[0]}`,
+        source: "kufar",
+      },
+    });
 
     // history for new
     if (isNew) {
@@ -227,7 +248,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     }
 
     // price changed
-    if (existing && existing.price !== price) {
+    if (priceChanged) {
       incMetric("priceChanges");
       logger.info({ id, oldPrice: existing.price, newPrice: price }, "Price changed");
 
@@ -260,25 +281,6 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
         userAlerts[user.id].push(`🔥 ${price} | ${rooms ?? "?"}к\nhttps://re.kufar.by/vi/${id}`);
       }
     }
-
-    await prisma.listing.upsert({
-      where: { id },
-      update: {
-        title,
-        price,
-        lastSeenAt: new Date(),
-        isActive: true,
-      },
-      create: {
-        id,
-        title,
-        price,
-        currency: "BYN",
-        url: `https://re.kufar.by/vi/${id}`,
-        location: `${ad.c?.[1]}, ${ad.c?.[0]}`,
-        source: "kufar",
-      },
-    });
   }
 
   // deactivate missing
