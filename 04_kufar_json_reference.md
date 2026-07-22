@@ -164,6 +164,13 @@ Current value is a string.
 
 Represents Kufar category identifier.
 
+Common real-estate categories used by this service:
+
+- `1010` - apartments
+- `1020` - houses and cottages
+- `1080` - land plots
+- `1050` - commercial real estate
+
 ---
 
 # Transaction Type

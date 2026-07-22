@@ -258,6 +258,27 @@ Detailed structure is described in **13_project_structure.md**.
 - Immutable domain objects.
 - Pure business logic.
 - Infrastructure isolation.
+
+---
+
+# Kufar Categories
+
+Kufar Search API uses a numeric category code (`cat`) to select real estate type.
+
+Defaults:
+
+- Apartments: `1010`
+
+Supported overrides:
+
+- Houses and cottages: `1020`
+- Land plots: `1080`
+- Commercial real estate: `1050`
+
+How to override:
+
+- Environment: `KUFAR_CATEGORY=1020`
+- HTTP (debug): `GET /kufar?cat=1020` and `GET /sync?cat=1020`
 - SOLID principles where appropriate.
 
 ---

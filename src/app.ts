@@ -103,14 +103,18 @@ app.get("/metrics", async () => {
 
 app.register(fastifyFormbody);
 
-app.get("/kufar", async () => {
-  const data = await fetchKufarMap();
+app.get("/kufar", async (req: any) => {
+  // Optional category override: `/kufar?cat=1020`
+  const cat = typeof req.query?.cat === "string" ? req.query.cat : undefined;
+  const data = await fetchKufarMap(cat ? { category: cat } : undefined);
   return data;
 });
 
-app.get("/sync", async () => {
+app.get("/sync", async (req: any) => {
   incMetric("syncRuns");
-  const count = await saveKufarAds();
+  // Optional category override: `/sync?cat=1020`
+  const cat = typeof req.query?.cat === "string" ? req.query.cat : undefined;
+  const count = await saveKufarAds(cat ? { category: cat } : undefined);
 
   return {
     synced: count,

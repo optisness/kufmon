@@ -5,6 +5,56 @@ import { incMetric } from "./metrics.js";
 
 const logger = createLogger({ module: "kufar" });
 
+const KUFAR_DEFAULT_GTSY = "country-belarus~province-grodnenskaja_oblast~locality-grodno";
+
+export const KUFAR_CATEGORIES = {
+  apartments: "1010",
+  houses: "1020",
+  land: "1080",
+  commercial: "1050",
+} as const;
+
+export type KufarCategory = (typeof KUFAR_CATEGORIES)[keyof typeof KUFAR_CATEGORIES];
+
+function buildKufarSearchUrl(options?: {
+  category?: string;
+  currency?: string;
+  gtsy?: string;
+  language?: string;
+  limit?: number;
+  type?: string;
+  // Optional explicit numeric codes (Kufar uses these in `pu` for some params)
+  regionCode?: string | number; // `rgn`
+  areaCode?: string | number; // `ar`
+  // Rooms filter (e.g. `v.or:3`); leave undefined to not filter by rooms.
+  rooms?: string; // `rms`
+}) {
+  const category =
+    options?.category ??
+    process.env.KUFAR_CATEGORY ??
+    KUFAR_CATEGORIES.apartments;
+  const currency = options?.currency ?? "USD";
+  const gtsy = options?.gtsy ?? KUFAR_DEFAULT_GTSY;
+  const language = options?.language ?? "ru";
+  const limit = options?.limit ?? 30;
+  const type = options?.type ?? "sell";
+
+  const params = new URLSearchParams({
+    cat: category,
+    cur: currency,
+    gtsy,
+    lang: language,
+    size: String(limit),
+    typ: type,
+  });
+
+  if (options?.regionCode != null) params.set("rgn", String(options.regionCode));
+  if (options?.areaCode != null) params.set("ar", String(options.areaCode));
+  if (options?.rooms) params.set("rms", options.rooms);
+
+  return `https://api.kufar.by/search-api/v2/search/rendered-paginated?${params.toString()}`;
+}
+
 async function fetchWithRetry(url: string, options: any = {}, retries = 3, backoff = 500) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -18,9 +68,8 @@ async function fetchWithRetry(url: string, options: any = {}, retries = 3, backo
   }
 }
 
-export async function fetchKufarMap() {
-  const url =
-    "https://api.kufar.by/search-api/v2/search/map/over?cat=1010&gbx=b%3A23.7700119033966%2C53.65650117650396%2C23.781320096603395%2C53.66093670625306&prn=1000&size=900&sort=lst.d&typ=sell";
+export async function fetchKufarMap(options?: Parameters<typeof buildKufarSearchUrl>[0]) {
+  const url = buildKufarSearchUrl(options);
 
   const res = await fetchWithRetry(url, {
     headers: {
@@ -31,9 +80,50 @@ export async function fetchKufarMap() {
   return res.json();
 }
 
-export async function saveKufarAds() {
-  const data = await fetchKufarMap();
-  const ads = data.ads ?? [];
+export { buildKufarSearchUrl };
+
+function findAdParamValue(ad: any, key: string) {
+  const params = ad?.ad_parameters;
+  if (!Array.isArray(params)) return null;
+  const item = params.find((p: any) => p?.p === key);
+  return item?.v ?? null;
+}
+
+function minorUnitsToNumber(value: any) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return n / 100;
+}
+
+function normalizeRenderedAd(ad: any) {
+  // Normalize rendered-paginated response into the legacy shape
+  // expected by the rest of this file (`i`, `subject`, `p`, `rooms`, `c`).
+  const id = String(ad?.ad_id ?? ad?.list_id ?? "");
+  const subject = ad?.subject ?? "Unknown";
+  const roomsRaw = findAdParamValue(ad, "rooms");
+  const rooms = roomsRaw != null ? Number(roomsRaw) : null;
+
+  const coords = findAdParamValue(ad, "coordinates");
+  const c =
+    Array.isArray(coords) && coords.length >= 2
+      ? [Number(coords[0]), Number(coords[1])]
+      : null;
+
+  const priceBynMinor = ad?.price_byn ?? null;
+  const price = priceBynMinor != null ? minorUnitsToNumber(priceBynMinor) : 0;
+
+  return {
+    i: id,
+    subject,
+    p: price,
+    rooms,
+    c,
+  };
+}
+
+export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]) {
+  const data = await fetchKufarMap(options);
+  const ads = Array.isArray(data.ads) ? data.ads.map(normalizeRenderedAd) : [];
 
   incMetric("adsFetched", ads.length);
 

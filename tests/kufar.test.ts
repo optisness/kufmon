@@ -26,11 +26,13 @@ import { metrics } from '../src/metrics.js';
 
 let fetchKufarMap: any;
 let saveKufarAds: any;
+let buildKufarSearchUrl: any;
 
 beforeAll(async () => {
   const module = await import('../src/kufar.js');
   fetchKufarMap = module.fetchKufarMap;
   saveKufarAds = module.saveKufarAds;
+  buildKufarSearchUrl = module.buildKufarSearchUrl;
 });
 
 const installFetchMock = (responses: any[]) => {
@@ -74,6 +76,26 @@ describe('Kufar sync', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('builds a search url with region filter (gtsy)', () => {
+    const url = buildKufarSearchUrl({
+      gtsy: 'country-belarus~province-grodnenskaja_oblast~locality-grodno',
+      currency: 'USD',
+      category: '1010',
+      language: 'ru',
+      limit: 30,
+      type: 'sell',
+    });
+
+    expect(url).toContain('search/rendered-paginated?');
+    expect(url).toContain('cat=1010');
+    expect(url).toContain('cur=USD');
+    expect(url).toContain('lang=ru');
+    expect(url).toContain('size=30');
+    expect(url).toContain('typ=sell');
+    // URLSearchParams encodes `~` as `%7E`
+    expect(decodeURIComponent(url)).toContain('gtsy=country-belarus~province-grodnenskaja_oblast~locality-grodno');
+  });
+
   it('creates a new listing and sends a notification for new matching ads', async () => {
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'user-1', telegramChatId: '123', maxPrice: 500, rooms: [2] },
@@ -91,11 +113,13 @@ describe('Kufar sync', () => {
         json: async () => ({
           ads: [
             {
-              i: '1',
+              ad_id: 1,
               subject: 'Test listing',
-              p: 400,
-              rooms: 2,
-              c: [27.5, 53.9],
+              price_byn: '40000',
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
             },
           ],
         }),
@@ -131,11 +155,13 @@ describe('Kufar sync', () => {
         json: async () => ({
           ads: [
             {
-              i: '1',
+              ad_id: 1,
               subject: 'Test listing',
-              p: 500,
-              rooms: 2,
-              c: [27.5, 53.9],
+              price_byn: '50000',
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
             },
           ],
         }),
@@ -177,11 +203,13 @@ describe('Kufar sync', () => {
         json: async () => ({
           ads: [
             {
-              i: '1',
+              ad_id: 1,
               subject: 'Test listing',
-              p: 250,
-              rooms: 2,
-              c: [27.5, 53.9],
+              price_byn: '25000',
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
             },
           ],
         }),

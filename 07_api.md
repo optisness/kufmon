@@ -317,6 +317,10 @@ GET /sync
 
 Triggers a manual synchronization run and returns the number of ads processed.
 
+Optional query parameters:
+
+- `cat` (string): Kufar category code override (e.g. `1010`, `1020`, `1080`, `1050`).
+
 ```json
 {
     "synced": 12
@@ -332,6 +336,10 @@ GET /kufar
 ```
 
 Returns the latest raw Kufar payload fetched by the service.
+
+Optional query parameters:
+
+- `cat` (string): Kufar category code override (e.g. `1010`, `1020`, `1080`, `1050`).
 
 ---
 
