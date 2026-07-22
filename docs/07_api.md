@@ -14,8 +14,9 @@ The API is independent of the implementation language and runtime.
 
 Current implementation notes:
 
-- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, simple UI and user management endpoints): [src/app.ts](src/app.ts#L1).
-- The `/ui` admin page shows numbered tables, sorts users by display name, sorts subscriptions by name/owner/interval, and lets subscriptions pick an owner from existing users.
+- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, UI pages and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
+- The admin UI is split into separate pages: `/ui` for overview, `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings.
+- The listings page sorts price using the normalized numeric value, so the `"$"` prefix shown in the table does not break sorting.
 
 Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.
 
@@ -72,6 +73,8 @@ Request:
 A subscription owns optional filter criteria and is attached to a single user. The implementation keeps the UI simple by splitting the common filters into separate `maxPrice` and `rooms` fields instead of a raw JSON editor.
 
 In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name. The new `category` field stores the Kufar category code used for the search, such as `1010`, `1020`, `1050`, or `1080`. After creation, the service sends the user a Telegram backfill containing matching active listings from the last subscription interval.
+
+The subscription creation form is compacted into two visual rows in the admin UI: the first row contains name, user, and interval; the second row contains category, max price, rooms, and submit.
 
 Response:
 
