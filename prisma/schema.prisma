@@ -31,9 +31,6 @@ model User {
   name           String?
   telegramChatId String
 
-  maxPrice Int?
-  rooms    Int[]
-
   subscriptions Subscription[]
 
   createdAt DateTime @default(now())
@@ -53,6 +50,8 @@ model Subscription {
   name            String
   userId          String?
   category        String?
+  maxPrice        Int?
+  rooms           Json?
   filters         Json?
   intervalMinutes Int      @default(30)
   enabled         Boolean  @default(true)

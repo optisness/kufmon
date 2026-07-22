@@ -24,7 +24,7 @@ Future versions will support:
 - Multiple marketplaces.
 - Email notifications.
 - Admin UI at `/ui`.
-- Category-based search subscriptions.
+- Category-based search subscriptions with simple `maxPrice` and `rooms` filters.
 - User accounts.
 - Paid subscriptions.
 
@@ -169,19 +169,19 @@ This allows:
 
 | Document | Description |
 |-----------|-------------|
-| 01_architecture.md | System architecture |
-| 02_database.md | Database schema |
-| 03_sync_algorithm.md | Synchronization algorithm |
-| 04_kufar_json_reference.md | Kufar API reference |
-| 05_kufar_mapping.md | Mapping specification |
-| 06_notification_algorithm.md | Notification pipeline |
-| 07_api.md | Public REST API |
-| 08_deployment.md | Deployment strategy |
-| 09_roadmap.md | Project roadmap |
-| 10_decisions.md | Architecture Decision Records |
-| 11_glossary.md | Project glossary |
-| 12_testing_strategy.md | Testing strategy |
-| 13_project_structure.md | Source code organization |
+| docs/01_architecture.md | System architecture |
+| docs/02_database.md | Database schema |
+| docs/03_sync_algorithm.md | Synchronization algorithm |
+| docs/04_kufar_json_reference.md | Kufar API reference |
+| docs/05_kufar_mapping.md | Mapping specification |
+| docs/06_notification_algorithm.md | Notification pipeline |
+| docs/07_api.md | Public REST API |
+| docs/08_deployment.md | Deployment strategy |
+| docs/09_roadmap.md | Project roadmap |
+| docs/10_decisions.md | Architecture Decision Records |
+| docs/11_glossary.md | Project glossary |
+| docs/12_testing_strategy.md | Testing strategy |
+| docs/13_project_structure.md | Source code organization |
 
 ---
 
@@ -234,7 +234,7 @@ kufmon/
 └── README.md
 ```
 
-Detailed structure is described in **13_project_structure.md**.
+Detailed structure is described in **docs/13_project_structure.md**.
 
 ---
 
@@ -294,7 +294,7 @@ Current project stage:
 - ✅ Notification pipeline designed
 - ✅ REST API designed
 - ✅ Technology stack finalized
-- ⏳ Implementation not started
+- ✅ Core implementation in progress
 
 ---
 

@@ -166,8 +166,12 @@ Conditions:
 - user has active plan;
 - event matches saved search.
 - if subscription has a category, the event must belong to the same category.
+- if subscription has `max_price`, the listing price must be at or below that limit;
+- if subscription has `rooms`, the listing room count must match one of the selected values.
 
 Matching uses the normalized `ads` table, not raw JSON.
+
+When a subscription is created, the service also sends a one-time backfill message with matching active listings seen during the last subscription interval, so the user does not have to wait for the next sync cycle.
 
 ---
 

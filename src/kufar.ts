@@ -2,6 +2,7 @@ import { prisma } from "./db.js";
 import { sendTelegram } from "./telegram.js";
 import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
+import { matchesSubscriptionListing } from "./subscriptions.js";
 
 const logger = createLogger({ module: "kufar" });
 
@@ -170,62 +171,14 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     }
   }
 
-  function parseFilters(filters: any) {
-    if (!filters) return null;
-    if (typeof filters === "string") {
-      try {
-        return JSON.parse(filters);
-      } catch {
-        return null;
-      }
-    }
-    return filters;
-  }
-
-  function matchesFilter(filter: any, ad: any) {
-    if (!filter) return true;
-
-    const price = ad.p ?? 0;
-    const rooms = ad.rooms ?? null;
-
-    if (filter.price_max != null) {
-      if (!(price > 0 && price <= filter.price_max)) return false;
-    }
-
-    if (filter.maxPrice != null) {
-      if (!(price > 0 && price <= filter.maxPrice)) return false;
-    }
-
-    if (filter.rooms != null) {
-      if (!rooms || !filter.rooms.includes(rooms)) return false;
-    }
-
-    return true;
-  }
-
-  function matchesUserPrefs(user: any, ad: any) {
-    const price = ad.p ?? 0;
-    const rooms = ad.rooms ?? null;
-
-    const matchesPrice = !user.maxPrice || (price > 0 && price <= user.maxPrice);
-    const matchesRooms = !user.rooms || (rooms && user.rooms.includes(rooms));
-
-    return matchesPrice && matchesRooms;
-  }
-
   function matchesSubscription(user: any, ad: any) {
     const userSubs = subscriptionsByUser[user.id] || [];
     return userSubs.some((subscription) => {
-      if (subscription.category && ad.category && subscription.category !== ad.category) {
-        return false;
-      }
-
-      if (subscription.category && !ad.category) {
-        return false;
-      }
-
-      const filter = parseFilters(subscription.filters);
-      return matchesFilter(filter, ad);
+      return matchesSubscriptionListing(subscription, {
+        price: ad.p ?? 0,
+        rooms: ad.rooms ?? null,
+        category: ad.category ?? null,
+      });
     });
   }
 
@@ -297,7 +250,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
 
         if (price < existing.price) {
           for (const user of users) {
-            const userMatch = matchesSubscription(user, ad) || matchesUserPrefs(user, ad);
+            const userMatch = matchesSubscription(user, ad);
 
             if (userMatch) {
               userAlerts[user.id].push(
@@ -309,7 +262,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
       }
 
       for (const user of users) {
-        const userMatch = matchesSubscription(user, ad) || matchesUserPrefs(user, ad);
+        const userMatch = matchesSubscription(user, ad);
 
         if (isNew && userMatch) {
           userAlerts[user.id].push(`🔥 [${adCategory ?? "?"}] ${price} | ${rooms ?? "?"}к\nhttps://re.kufar.by/vi/${id}`);

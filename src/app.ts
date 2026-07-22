@@ -6,6 +6,7 @@ import { startCron } from "./cron.js";
 import { sendTelegram } from "./telegram.js";
 import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
+import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } from "./subscriptions.js";
 
 const app = Fastify({
   logger,
@@ -27,6 +28,45 @@ function getUserDisplayName(user: any) {
 
 function compareStrings(a: string, b: string) {
   return a.localeCompare(b, "ru", { sensitivity: "base", numeric: true });
+}
+
+const CATEGORY_LABEL_BY_VALUE: Record<string, string> = {
+  [KUFAR_CATEGORIES.apartments]: "Квартиры (1010)",
+  [KUFAR_CATEGORIES.houses]: "Дома (1020)",
+  [KUFAR_CATEGORIES.commercial]: "Коммерция (1050)",
+  [KUFAR_CATEGORIES.land]: "Земля (1080)",
+};
+
+function parseOptionalNumber(value: any) {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseRoomsSelection(value: any) {
+  const source = Array.isArray(value) ? value : value == null ? [] : [value];
+  return source
+    .flatMap((item) => String(item).split(","))
+    .map((item) => Number(item.trim()))
+    .filter((room) => Number.isFinite(room) && room > 0);
+}
+
+function splitMessageChunks(text: string, chunkSize = 3500) {
+  return text.match(new RegExp(`[\\s\\S]{1,${chunkSize}}`, "g")) || [];
+}
+
+function buildListingPreview(listing: any, categoryLabelByValue: Record<string, string>) {
+  const categoryLabel = listing.category
+    ? `${listing.category}${categoryLabelByValue[listing.category] ? ` (${categoryLabelByValue[listing.category]})` : ""}`
+    : "-";
+
+  return [
+    `${listing.title}`,
+    `Цена: ${listing.price}`,
+    `Комнаты: ${listing.rooms ?? "-"}`,
+    `Категория: ${categoryLabel}`,
+    `Ссылка: ${listing.url}`,
+  ].join("\n");
 }
 
 function sortUsers(users: any[]) {
@@ -196,6 +236,9 @@ app.get("/ui", async (req, reply) => {
     await prisma.subscription.findMany({ take: 50, orderBy: { createdAt: "desc" } }),
     usersById,
   );
+  const subscriptionFiltersById = new Map(
+    subscriptions.map((subscription) => [subscription.id, getSubscriptionFilters(subscription)]),
+  );
   const categoryOptions = [
     { value: KUFAR_CATEGORIES.apartments, label: "Квартиры (1010)" },
     { value: KUFAR_CATEGORIES.houses, label: "Дома (1020)" },
@@ -284,14 +327,6 @@ app.get("/ui", async (req, reply) => {
           <label>Telegram Chat ID</label>
           <input name="chatId" placeholder="e.g., 123456789" required />
         </div>
-        <div class="form-group">
-          <label>Max Price (optional)</label>
-          <input name="maxPrice" placeholder="e.g., 100000" type="number" />
-        </div>
-        <div class="form-group">
-          <label>Rooms (comma-separated, optional)</label>
-          <input name="rooms" placeholder="e.g., 2,3" />
-        </div>
         <button type="submit">Создать пользователя</button>
       </form>
 
@@ -301,8 +336,6 @@ app.get("/ui", async (req, reply) => {
           <th>№</th>
           <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Имя / название</th>
           <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="chatId">Chat ID</th>
-          <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="maxPrice">Max Price</th>
-          <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="rooms">Rooms</th>
           <th></th>
         </tr>
         ${users.map((u, index) => `
@@ -310,8 +343,6 @@ app.get("/ui", async (req, reply) => {
             <td>${index + 1}</td>
             <td>${escapeHtml(u.name?.trim() || "-")}</td>
             <td>${escapeHtml(u.telegramChatId)}</td>
-            <td>${u.maxPrice ?? "-"}</td>
-            <td>${escapeHtml((u.rooms || []).join(", ") || "-")}</td>
             <td>
               <form method="POST" action="/users/delete" onsubmit="return confirm('Удалить пользователя?')" style="display:inline;">
                 <input type="hidden" name="id" value="${u.id}" />
@@ -353,9 +384,31 @@ app.get("/ui", async (req, reply) => {
             </select>
           </div>
         </div>
-        <div class="form-group">
-          <label>Filters (JSON)</label>
-          <textarea name="filters" placeholder='{"price_max": 80000, "rooms": [2]}' rows="3"></textarea>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Max price (optional)</label>
+            <input name="maxPrice" type="number" list="price-presets" placeholder="Например, 80000" />
+            <datalist id="price-presets">
+              <option value="30000"></option>
+              <option value="50000"></option>
+              <option value="70000"></option>
+              <option value="100000"></option>
+              <option value="150000"></option>
+              <option value="200000"></option>
+            </datalist>
+          </div>
+          <div class="form-group">
+            <label>Rooms (optional)</label>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; padding-top:6px;">
+              ${[1, 2, 3, 4].map((room) => `
+                <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin-bottom:0;">
+                  <input type="checkbox" name="rooms" value="${room}" />
+                  ${room}
+                </label>
+              `).join("")}
+            </div>
+            <small style="color:#666;">Можно выбрать несколько вариантов.</small>
+          </div>
         </div>
         <button type="submit">Создать подписку</button>
       </form>
@@ -368,8 +421,9 @@ app.get("/ui", async (req, reply) => {
           <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="name">Name</th>
           <th class="sortable" data-sortable="true" data-sort-type="string" data-sort-key="owner">Owner</th>
           <th>Category</th>
+          <th>Max price</th>
+          <th>Rooms</th>
           <th class="sortable" data-sortable="true" data-sort-type="number" data-sort-key="interval">Interval</th>
-          <th>Filters</th>
           <th class="sortable" data-sortable="true" data-sort-type="boolean" data-sort-key="enabled">Enabled</th>
           <th></th>
         </tr>
@@ -380,8 +434,9 @@ app.get("/ui", async (req, reply) => {
             <td>${escapeHtml(s.name)}</td>
             <td>${escapeHtml(s.userId ? getUserDisplayName(usersById.get(s.userId)) : "-")}</td>
             <td>${escapeHtml(s.category ? `${s.category} ${categoryLabelByValue[s.category] ? `(${categoryLabelByValue[s.category]})` : ""}` : "-")}</td>
+            <td>${subscriptionFiltersById.get(s.id)?.maxPrice ?? "-"}</td>
+            <td>${escapeHtml(formatRoomsList(subscriptionFiltersById.get(s.id)?.rooms))}</td>
             <td>${s.intervalMinutes} мин</td>
-            <td><code style="font-size:11px;">${s.filters ? escapeHtml(JSON.stringify(s.filters)) : '-'}</code></td>
             <td>${s.enabled ? '✅' : '❌'}</td>
             <td>
               <form method="POST" action="/subscriptions/delete" onsubmit="return confirm('Удалить подписку?')" style="display:inline;">
@@ -522,39 +577,76 @@ app.get("/ui", async (req, reply) => {
 app.post("/users", async (req: any, reply) => {
   const body = req.body;
 
-  const rooms = body.rooms
-    ? body.rooms.split(",").map((r: string) => Number(r))
-    : [];
-
   await prisma.user.create({
     data: {
       name: body.name ? String(body.name).trim() || null : null,
       telegramChatId: body.chatId,
-      maxPrice: body.maxPrice ? Number(body.maxPrice) : null,
-      rooms,
     },
   });
 
   reply.redirect("/ui");
 });
 
-app.post('/subscriptions', async (req: any, reply) => {
+app.post("/subscriptions", async (req: any, reply) => {
   const body = req.body;
+  const userId = body.userId || null;
+  const maxPrice = parseOptionalNumber(body.maxPrice);
+  const rooms = parseRoomsSelection(body.rooms);
+  const intervalMinutes = parseOptionalNumber(body.intervalMinutes) ?? 30;
 
-  let filters = null;
-  try { filters = body.filters ? JSON.parse(body.filters) : null; } catch { filters = null; }
-
-  await prisma.subscription.create({
+  const subscription = await prisma.subscription.create({
     data: {
-      name: body.name || 'unnamed',
-      userId: body.userId || null,
+      name: body.name || "unnamed",
+      userId,
       category: body.category || null,
-      filters,
-      intervalMinutes: body.intervalMinutes ? Number(body.intervalMinutes) : 30,
-    }
+      maxPrice,
+      rooms,
+      intervalMinutes,
+    },
   });
 
-  reply.redirect('/ui');
+  if (subscription.userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: subscription.userId },
+    });
+
+    if (user) {
+      const cutoff = new Date(Date.now() - subscription.intervalMinutes * 60_000);
+      const recentListings = await prisma.listing.findMany({
+        where: {
+          lastSeenAt: { gte: cutoff },
+          isActive: true,
+        },
+        orderBy: [
+          { lastSeenAt: "desc" },
+          { createdAt: "desc" },
+        ],
+        take: 50,
+      });
+
+      const matchingListings = recentListings.filter((listing) =>
+        matchesSubscriptionListing(subscription, {
+          price: listing.price,
+          rooms: listing.rooms,
+          category: listing.category,
+        }),
+      );
+
+      if (matchingListings.length > 0) {
+        const chunks = splitMessageChunks(
+          matchingListings
+            .map((listing) => buildListingPreview(listing, CATEGORY_LABEL_BY_VALUE))
+            .join("\n\n"),
+        );
+
+        for (const chunk of chunks) {
+          await sendTelegram(chunk, user.telegramChatId);
+        }
+      }
+    }
+  }
+
+  reply.redirect("/ui");
 });
 
 app.post('/subscriptions/delete', async (req: any, reply) => {

@@ -99,6 +99,7 @@ CHECK гарантирует заполнение полей согласно `t
 
 -   In the admin UI, `user_id` is selected from existing users instead of being entered manually.
 -   `category` stores the Kufar search category code used for the subscription, for example `1010` or `1050`.
+-   `max_price` and `rooms` are stored directly on the subscription so the UI can expose them as simple fields instead of a raw JSON editor.
 
   Поле
   -------------------
@@ -106,6 +107,8 @@ CHECK гарантирует заполнение полей согласно `t
   user_id
   name
   category
+  max_price
+  rooms JSONB
   filter_json JSONB
   interval_minutes
   last_check_at
@@ -218,6 +221,8 @@ event_type:
 ## search_subscriptions
 
 -   INDEX(user_id)
+-   INDEX(category)
+-   INDEX(max_price)
 -   INDEX(category)
 -   INDEX(enabled)
 -   INDEX(last_check_at)

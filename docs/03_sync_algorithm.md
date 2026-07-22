@@ -582,6 +582,8 @@ missing_count
 updated_at
 
 category
+max_price
+rooms
 ```
 
 ---

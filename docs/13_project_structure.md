@@ -20,19 +20,20 @@ The primary goals are:
 
 ```
 project-root/
-├── 01_architecture.md
-├── 02_database.md
-├── 03_sync_algorithm.md
-├── 04_kufar_json_reference.md
-├── 05_kufar_mapping.md
-├── 06_notification_algorithm.md
-├── 07_api.md
-├── 08_deployment.md
-├── 09_roadmap.md
-├── 10_decisions.md
-├── 11_glossary.md
-├── 12_testing_strategy.md
-├── 13_project_structure.md
+├── docs/
+│   ├── 01_architecture.md
+│   ├── 02_database.md
+│   ├── 03_sync_algorithm.md
+│   ├── 04_kufar_json_reference.md
+│   ├── 05_kufar_mapping.md
+│   ├── 06_notification_algorithm.md
+│   ├── 07_api.md
+│   ├── 08_deployment.md
+│   ├── 09_roadmap.md
+│   ├── 10_decisions.md
+│   ├── 11_glossary.md
+│   ├── 12_testing_strategy.md
+│   └── 13_project_structure.md
 ├── package.json
 ├── prisma.config.ts
 ├── prisma/

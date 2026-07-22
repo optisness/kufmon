@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
+import { matchesSubscriptionListing } from '../src/subscriptions.js';
 
 const prismaMock = {
   user: {
@@ -98,9 +99,17 @@ describe('Kufar sync', () => {
 
   it('creates a new listing and sends a notification for new matching ads', async () => {
     prismaMock.user.findMany.mockResolvedValue([
-      { id: 'user-1', telegramChatId: '123', maxPrice: 500, rooms: [2] },
+      { id: 'user-1', telegramChatId: '123' },
     ]);
-    prismaMock.subscription.findMany.mockResolvedValue([]);
+    prismaMock.subscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-1',
+        userId: 'user-1',
+        maxPrice: 500,
+        rooms: [2],
+        enabled: true,
+      },
+    ]);
     prismaMock.listing.findUnique.mockResolvedValue(null);
     prismaMock.listing.upsert.mockResolvedValue({ id: '1' });
     prismaMock.priceHistory.create.mockResolvedValue({});
@@ -140,9 +149,17 @@ describe('Kufar sync', () => {
 
   it('records a price change and sends an alert when listing price drops', async () => {
     prismaMock.user.findMany.mockResolvedValue([
-      { id: 'user-1', telegramChatId: '123', maxPrice: 500, rooms: [2] },
+      { id: 'user-1', telegramChatId: '123' },
     ]);
-    prismaMock.subscription.findMany.mockResolvedValue([]);
+    prismaMock.subscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-1',
+        userId: 'user-1',
+        maxPrice: 500,
+        rooms: [2],
+        enabled: true,
+      },
+    ]);
     prismaMock.listing.findUnique.mockResolvedValue({ id: '1', price: 600 });
     prismaMock.listing.upsert.mockResolvedValue({ id: '1' });
     prismaMock.priceHistory.create.mockResolvedValue({});
@@ -179,15 +196,16 @@ describe('Kufar sync', () => {
     expect(metrics.alertsSent).toBe(1);
   });
 
-  it('uses a personal subscription filter when user preferences do not match', async () => {
+  it('uses subscription filters when user preferences are absent', async () => {
     prismaMock.user.findMany.mockResolvedValue([
-      { id: 'user-1', telegramChatId: '123', maxPrice: 100, rooms: [1] },
+      { id: 'user-1', telegramChatId: '123' },
     ]);
     prismaMock.subscription.findMany.mockResolvedValue([
       {
         id: 'sub-1',
         userId: 'user-1',
-        filters: { price_max: 300, rooms: [2] },
+        maxPrice: 300,
+        rooms: [2],
         enabled: true,
       },
     ]);
@@ -227,14 +245,15 @@ describe('Kufar sync', () => {
 
   it('does not match a subscription from another category', async () => {
     prismaMock.user.findMany.mockResolvedValue([
-      { id: 'user-1', telegramChatId: '123', maxPrice: 100, rooms: [1] },
+      { id: 'user-1', telegramChatId: '123' },
     ]);
     prismaMock.subscription.findMany.mockResolvedValue([
       {
         id: 'sub-1',
         userId: 'user-1',
         category: '1050',
-        filters: { price_max: 300, rooms: [2] },
+        maxPrice: 300,
+        rooms: [2],
         enabled: true,
       },
     ]);
@@ -274,5 +293,21 @@ describe('Kufar sync', () => {
     expect(metrics.adsFetched).toBe(1);
     expect(metrics.newListings).toBe(1);
     expect(metrics.alertsSent).toBe(0);
+  });
+
+  it('matches listings by subscription fields and category', () => {
+    expect(
+      matchesSubscriptionListing(
+        { category: '1010', maxPrice: 80000, rooms: [1, 2] },
+        { category: '1010', price: 75000, rooms: 2 },
+      ),
+    ).toBe(true);
+
+    expect(
+      matchesSubscriptionListing(
+        { category: '1010', maxPrice: 80000, rooms: [1, 2] },
+        { category: '1050', price: 75000, rooms: 2 },
+      ),
+    ).toBe(false);
   });
 });
