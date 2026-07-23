@@ -52,13 +52,13 @@ const app = Fastify({
 
 app.addHook("onRequest", async (request, reply) => {
   const path = String(request.raw.url ?? "/").split("?")[0];
-  const publicPaths = new Set(["/", "/login", "/logout"]);
+  const publicPaths = new Set(["/", "/login", "/logout", "/health"]);
   if (publicPaths.has(path)) return;
 
   const isAuthenticated = isAdminAuthenticated(request.headers.cookie);
   if (isAuthenticated) return;
 
-  const apiPaths = ["/health", "/metrics", "/kufar", "/sync", "/test-tg"];
+  const apiPaths = ["/metrics", "/kufar", "/sync", "/test-tg"];
   if (apiPaths.includes(path) || path.startsWith("/api/")) {
     reply.code(401).send({ error: "Unauthorized" });
     return;
