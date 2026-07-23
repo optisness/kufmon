@@ -8,6 +8,7 @@ import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } from "./subscriptions.js";
 import { formatEventSummary } from "./listingEvents.js";
+import { formatListingAttemptCount, formatListingEventAt } from "./listingTable.js";
 import {
   BILLING_PLANS,
   enforceSearchSubscriptionLimits,
@@ -145,7 +146,7 @@ function formatDateInputValue(value: string | Date | null | undefined) {
 
 function formatLastEventLabel(event: { eventType: string; createdAt: string | Date } | null | undefined) {
   if (!event) return "—";
-  return `${event.eventType} · ${formatDateTime(event.createdAt)}`;
+  return formatListingEventAt(event.createdAt);
 }
 
 function buildPlanOptionMarkup(selectedPlanId?: string | null) {
@@ -287,6 +288,18 @@ function renderAdminLayout(options: {
     .pagination-link:hover { background:#f5f9ff; }
     .pagination-link.disabled { pointer-events:none; color:#999; background:#f7f7f7; }
     .pagination-current { font-weight:bold; color:#333; }
+    .listing-row.inactive td { background:#ffe9e9; }
+    .listing-row.inactive:hover td { background:#ffdede; }
+    .attempt-column { width:64px; text-align:center; }
+    .event-column { white-space:nowrap; }
+    .id-column { font-family: monospace; font-size:11px; color:#8a8a8a; white-space:nowrap; }
+    .compact-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:12px; line-height:1.2; background:#f3f4f6; color:#222; }
+    .compact-badge.category { background:#eef2ff; color:#3730a3; }
+    .compact-badge.private { background:#fbe7e7; color:#9b1c1c; }
+    .compact-badge.company { background:#e7f0fb; color:#1d4ed8; }
+    .compact-badge.unknown { background:#f4f4f4; color:#666; }
+    .link-icons { display:flex; gap:10px; align-items:center; }
+    .link-icons a { text-decoration:none; font-size:16px; line-height:1; }
   </style>
 </head>
 <body>
@@ -671,38 +684,39 @@ function renderListingsPage(options: {
         <thead>
           <tr>
             <th>№</th>
-            <th>ID</th>
             ${renderSortableHeader("Название", "title", "string", options.currentSort)}
             ${renderSortableHeader("Category", "category", "string", options.currentSort)}
             ${renderSortableHeader("Seller", "seller", "string", options.currentSort)}
             ${renderSortableHeader("Цена", "price", "number", options.currentSort)}
             ${renderSortableHeader("Комнаты", "rooms", "number", options.currentSort)}
-            ${renderSortableHeader("Неудачных попыток", "missingCount", "number", options.currentSort)}
-            ${renderSortableHeader("Последнее событие", "lastEventAt", "string", options.currentSort)}
-            <th>Ссылка</th>
+            <th class="sortable attempt-column" data-sortable="true" data-sort-type="number" data-sort-key="missingCount"${options.currentSort?.key === "missingCount" ? ` data-sort-dir="${options.currentSort.direction}"` : ""}>Попыт</th>
+            <th class="sortable event-column" data-sortable="true" data-sort-type="string" data-sort-key="lastEventAt"${options.currentSort?.key === "lastEventAt" ? ` data-sort-dir="${options.currentSort.direction}"` : ""}>Изменен</th>
+            <th title="Ссылка">🔗</th>
             ${renderSortableHeader("Активно", "active", "boolean", options.currentSort)}
+            <th>ID</th>
           </tr>
         </thead>
         <tbody>
           ${options.listings.map((l, index) => `
-            <tr>
+            <tr class="${l.isActive ? "" : "listing-row inactive"}">
               <td>${getDisplayRowNumber(options.pagination, index)}</td>
-              <td style="font-size:11px;">${l.id}</td>
               <td>${escapeHtml(l.title)}</td>
-              <td>${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</td>
-              <td>${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</td>
+              <td><span class="compact-badge category">${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</span></td>
+              <td><span class="compact-badge ${escapeHtml(l.sellerType === "company" ? "company" : l.sellerType === "private" ? "private" : "unknown")}">${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</span></td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td>${l.rooms ?? "-"}</td>
-              <td>${Number.isFinite(Number(l.missingCount)) ? Number(l.missingCount) : 0}</td>
-              <td>${escapeHtml(formatLastEventLabel(options.latestEventByListingId.get(l.id)))}</td>
+              <td class="attempt-column">${escapeHtml(formatListingAttemptCount(l.missingCount))}</td>
+              <td class="event-column">${escapeHtml(formatLastEventLabel(options.latestEventByListingId.get(l.id)))}</td>
               <td>
-                <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
-                <br/>
-                <a href="/history/${l.id}" target="_blank" style="color:#666; text-decoration:none; font-size:12px;">история</a>
+                <div class="link-icons">
+                  <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" title="Открыть объявление">↗</a>
+                  <a href="/history/${l.id}" target="_blank" title="История">⌕</a>
+                </div>
               </td>
               <td data-sort-value="${l.isActive ? 1 : 0}">
-                <span style="color:${l.isActive ? "#28a745" : "#dc3545"}; font-weight:bold;">${l.isActive ? "+" : "×"}</span>
+                <span style="color:${l.isActive ? "#28a745" : "#dc3545"}; font-weight:bold;" title="${l.isActive ? "Активно" : "Неактивно"}">${l.isActive ? "＋" : "×"}</span>
               </td>
+              <td class="id-column">${l.id}</td>
             </tr>
           `).join("")}
         </tbody>
