@@ -28,7 +28,8 @@ Current implementation notes:
 - The listings page also shows the `missingCount` column, which represents consecutive failed sync attempts before a listing becomes `REMOVED`.
 - The listings page now also shows and sorts by the timestamp of the latest `NEW` / `CHANGED` / `REMOVED` event, so operators can quickly see how recently a listing changed.
 - The `NEW` history payload includes the normalized snapshot plus the full address, full description, and all photo URLs, but those extra fields are only used in the admin history view.
-- `/health` is public so Render can probe it without a session cookie. `/metrics` and `/kufar` remain protected debug endpoints and are not shown in the main navigation. `metrics` returns uptime plus a few counters; `kufar` returns the raw Kufar search payload.
+- `/health` is public so Render can probe it without a session cookie. In the browser it renders a status page with navigation; JSON is still available via `?format=json` or an `application/json` accept header.
+- `/metrics` and `/kufar` remain protected debug endpoints and are not shown in the main navigation. `metrics` returns uptime plus a few counters; `kufar` returns the raw Kufar search payload.
 - Admin login attempts are rate-limited: three wrong passwords lock the form for five minutes and trigger a Telegram notification to the admin.
 
 Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.

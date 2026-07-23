@@ -528,6 +528,51 @@ function renderLandingPage(options: {
 </html>`;
 }
 
+function renderHealthPage(options: {
+  status: Awaited<ReturnType<typeof getServiceStatus>>;
+}) {
+  const statusLabel = options.status.db ? "OK" : "Error";
+  const telegramLabel = options.status.telegram ? "Configured" : "Not configured";
+  const adminPasswordLabel = options.status.adminPassword ? "Configured" : "Missing";
+
+  return renderAdminLayout({
+    title: "Health",
+    activePath: "/health",
+    body: `
+    <div class="section">
+      <h2>Состояние сервиса</h2>
+      <p>Публичная проверка для Render и удобная ручная диагностика.</p>
+      <div class="page-grid" style="margin-top:16px;">
+        <div class="page-card">
+          <h3>Сервис</h3>
+          <p><strong>Running</strong></p>
+        </div>
+        <div class="page-card">
+          <h3>База</h3>
+          <p><strong>${statusLabel}</strong></p>
+        </div>
+        <div class="page-card">
+          <h3>Telegram</h3>
+          <p><strong>${telegramLabel}</strong></p>
+        </div>
+        <div class="page-card">
+          <h3>Пароль</h3>
+          <p><strong>${adminPasswordLabel}</strong></p>
+        </div>
+        <div class="page-card">
+          <h3>Uptime</h3>
+          <p><strong>${Math.floor(options.status.uptime)}s</strong></p>
+        </div>
+      </div>
+      <div style="margin-top:16px; color:#666;">
+        <p><strong>Public:</strong> <code>/health</code></p>
+        <p><strong>Protected debug:</strong> <code>/metrics</code>, <code>/kufar</code>, <code>/sync</code></p>
+      </div>
+    </div>
+    `,
+  });
+}
+
 function renderApplicationFormPage() {
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -894,15 +939,21 @@ app.get("/", async (req: any, reply) => {
   }));
 });
 
-app.get("/health", async () => {
+app.get("/health", async (req: any, reply) => {
   const status = await getServiceStatus();
+  const wantsJson = typeof req.query?.format === "string" && req.query.format === "json"
+    || String(req.headers.accept ?? "").includes("application/json");
 
-  return {
-    status: "ok",
-    db: status.db,
-    telegram: status.telegram,
-    uptime: status.uptime,
-  };
+  if (wantsJson) {
+    return {
+      status: "ok",
+      db: status.db,
+      telegram: status.telegram,
+      uptime: status.uptime,
+    };
+  }
+
+  reply.type("text/html; charset=utf-8").send(renderHealthPage({ status }));
 });
 
 app.get("/apply", async (_req, reply) => {
