@@ -108,6 +108,17 @@ Support:
 
 ---
 
+## Billing and Limits
+
+Planned SaaS billing controls are now represented in the data model and admin UI:
+
+- user-level tariff and payment expiration;
+- tariff-based search subscription limits;
+- tariff-based minimum search interval;
+- billing history via `user_subscriptions`.
+
+---
+
 ## REST API
 
 Endpoints:

@@ -19,6 +19,8 @@
 
 -   `name` is an optional display name for the user.
 -   The admin UI uses it to label users and subscription owners.
+-   The active tariff is stored on the user itself as `plan_id` and `plan_expires_at` so the admin UI can sort and filter without extra joins.
+-   Billing history is stored separately in `user_subscriptions`, so a tariff change creates a new row instead of overwriting the past.
 
   Поле         Тип            Описание
   ------------ -------------- ---------------
@@ -54,6 +56,14 @@ CHECK гарантирует заполнение полей согласно `t
 # plans
 
 Описание тарифов.
+
+Current fixed tariffs:
+
+- `single` - `1 подписка`, minimum interval `20` minutes
+- `triple` - `3 подписки`, minimum interval `10` minutes
+- `unlimited` - `анлим`, minimum interval `5` minutes
+- `bonus` - `1 бонусная подписка`, minimum interval `5` minutes
+- `technical` - `техническая`, free, expires in 10 years, minimum interval `5` minutes
 
   Поле
   --------------------------
@@ -101,6 +111,7 @@ CHECK гарантирует заполнение полей согласно `t
 -   `category` stores the Kufar search category code used for the subscription, for example `1010` or `1050`.
 -   `max_price` and `rooms` are stored directly on the subscription so the UI can expose them as simple fields instead of a raw JSON editor.
 -   `rooms` may include the special token `5+`, which matches any listing with five or more rooms.
+-   When a subscription is created or the user tariff changes, the service clamps the interval to the plan minimum and disables the oldest active subscriptions if the plan limit is exceeded.
 
   Поле
   -------------------

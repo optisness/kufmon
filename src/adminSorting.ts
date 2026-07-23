@@ -62,6 +62,14 @@ export function getUsersOrderBy(sortState: AdminSortState | null): any[] {
     return [{ telegramChatId: sortState.direction }, { name: "asc" }];
   }
 
+  if (sortState.key === "plan") {
+    return [{ plan: { name: sortState.direction } }, { planExpiresAt: "desc" }, { name: "asc" }];
+  }
+
+  if (sortState.key === "expiresAt") {
+    return [{ planExpiresAt: sortState.direction }, { name: "asc" }];
+  }
+
   return [{ name: sortState.direction }, { telegramChatId: "asc" }];
 }
 

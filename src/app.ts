@@ -8,6 +8,15 @@ import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } from "./subscriptions.js";
 import { formatEventSummary } from "./listingEvents.js";
+import {
+  BILLING_PLANS,
+  enforceSearchSubscriptionLimits,
+  formatBillingPlanLabel,
+  getBillingPlan,
+  getBillingPlanOptions,
+  getDefaultBillingExpiresAt,
+  persistUserBillingState,
+} from "./billing.js";
 import { formatTelegramBatchMessage } from "./telegramMessage.js";
 import { buildTelegramListingUrl } from "./telegramMessage.js";
 import {
@@ -127,9 +136,25 @@ function formatDateTime(value: string | Date | null | undefined) {
   return date.toLocaleString("ru-RU", { timeZone: "Europe/Minsk" });
 }
 
+function formatDateInputValue(value: string | Date | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
 function formatLastEventLabel(event: { eventType: string; createdAt: string | Date } | null | undefined) {
   if (!event) return "—";
   return `${event.eventType} · ${formatDateTime(event.createdAt)}`;
+}
+
+function buildPlanOptionMarkup(selectedPlanId?: string | null) {
+  return getBillingPlanOptions()
+    .map((plan) => {
+      const selected = selectedPlanId === plan.value ? " selected" : "";
+      return `<option value="${escapeHtml(plan.value)}"${selected}>${escapeHtml(plan.label)}</option>`;
+    })
+    .join("");
 }
 
 function splitMessageChunks(text: string, chunkSize = 3500) {
@@ -383,29 +408,51 @@ function renderOverviewPage() {
 
 function renderUsersPage(options: {
   users: any[];
+  selectedUser: any | null;
   returnTo: string;
+  planOptionMarkup: string;
   pagination: ReturnType<typeof buildPaginationMeta>;
   query: Record<string, unknown>;
   currentSort: { key: string; direction: "asc" | "desc" } | null;
 }) {
+  const isEditing = Boolean(options.selectedUser);
+  const defaultPlanId = options.selectedUser?.planId ?? "single";
+  const planExpiresAtValue = formatDateInputValue(options.selectedUser?.planExpiresAt ?? getDefaultBillingExpiresAt(defaultPlanId));
   return renderAdminLayout({
     title: "Пользователи",
     activePath: "/ui/users",
     body: `
     <div class="section">
       <h2>Пользователи</h2>
-      <h3>Создать пользователя</h3>
-      <form method="POST" action="/users" class="compact-form" style="grid-template-columns: 1fr 1fr auto; align-items:end;">
+      <h3>${isEditing ? "Редактировать пользователя" : "Создать пользователя"}</h3>
+      <form method="POST" action="${isEditing ? "/users/update" : "/users"}" class="compact-form" style="grid-template-columns: 1fr 1fr 1.2fr 1fr 1fr auto; align-items:end;">
         <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}" />
+        ${isEditing ? `<input type="hidden" name="id" value="${escapeHtml(options.selectedUser.id)}" />` : ""}
         <div class="form-group">
           <label>Имя / название пользователя</label>
-          <input name="name" placeholder="Например, Иван или Агентство А" required />
+          <input name="name" value="${escapeHtml(options.selectedUser?.name ?? "")}" placeholder="Например, Иван или Агентство А" required />
         </div>
         <div class="form-group">
           <label>Telegram Chat ID</label>
-          <input name="chatId" placeholder="e.g., 123456789" required />
+          <input name="chatId" value="${escapeHtml(options.selectedUser?.telegramChatId ?? "")}" placeholder="e.g., 123456789" required />
         </div>
-        <button type="submit">Создать пользователя</button>
+        <div class="form-group">
+          <label>Тариф</label>
+          <select name="planId" required>
+            ${options.planOptionMarkup}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Оплачено до</label>
+          <input name="planExpiresAt" type="date" value="${escapeHtml(planExpiresAtValue)}" required />
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button type="submit">${isEditing ? "Сохранить изменения" : "Создать пользователя"}</button>
+            ${isEditing ? `<a href="/ui/users" style="color:#007bff; text-decoration:none;">Отменить</a>` : ""}
+          </div>
+        </div>
       </form>
 
       <h3>Существующие пользователи</h3>
@@ -415,7 +462,9 @@ function renderUsersPage(options: {
             <th>№</th>
             ${renderSortableHeader("Имя / название", "name", "string", options.currentSort)}
             ${renderSortableHeader("Chat ID", "chatId", "string", options.currentSort)}
-            <th></th>
+            ${renderSortableHeader("Тариф", "plan", "string", options.currentSort)}
+            ${renderSortableHeader("Оплачено до", "expiresAt", "string", options.currentSort)}
+            <th>Действия</th>
           </tr>
         </thead>
         <tbody>
@@ -424,7 +473,10 @@ function renderUsersPage(options: {
               <td>${getDisplayRowNumber(options.pagination, index)}</td>
               <td>${escapeHtml(u.name?.trim() || "-")}</td>
               <td>${escapeHtml(u.telegramChatId)}</td>
+              <td>${escapeHtml(u.plan?.name ?? formatBillingPlanLabel(u.planId))}</td>
+              <td>${escapeHtml(formatDateTime(u.planExpiresAt))}</td>
               <td>
+                <a href="/ui/users?edit=${encodeURIComponent(u.id)}" style="color:#007bff; text-decoration:none; margin-right:10px;">Редактировать</a>
                 <form method="POST" action="/users/delete" onsubmit="return confirm('Удалить пользователя?')" style="display:inline;">
                   <input type="hidden" name="id" value="${u.id}" />
                   <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}" />
@@ -785,17 +837,34 @@ app.get("/ui/users", async (req: any, reply) => {
   const page = parsePositiveInt(req.query?.page, 1);
   const totalItems = await prisma.user.count();
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
-  const sortState = parseAdminSortState(req.query ?? {}, ["name", "chatId"]);
+  const sortState = parseAdminSortState(req.query ?? {}, ["name", "chatId", "plan", "expiresAt"]);
   const users = await prisma.user.findMany({
     skip: pagination.offset,
     take: pagination.pageSize,
+    include: {
+      plan: true,
+    },
     orderBy: getUsersOrderBy(sortState),
   });
-  const returnTo = buildPaginationUrl("/ui/users", req.query ?? {}, pagination.page, pagination.pageSize);
+  const selectedUserId = typeof req.query?.edit === "string" ? req.query.edit : null;
+  const selectedUser = selectedUserId
+    ? await prisma.user.findUnique({
+        where: { id: selectedUserId },
+        include: {
+          plan: true,
+        },
+      })
+    : null;
+  const planOptionMarkup = buildPlanOptionMarkup(selectedUser?.planId ?? "single");
+  const userQuery = { ...(req.query ?? {}) };
+  delete userQuery.edit;
+  const returnTo = buildPaginationUrl("/ui/users", userQuery, pagination.page, pagination.pageSize);
 
   reply.type("text/html; charset=utf-8").send(renderUsersPage({
     users,
+    selectedUser,
     returnTo,
+    planOptionMarkup,
     pagination,
     query: req.query ?? {},
     currentSort: sortState,
@@ -925,13 +994,44 @@ app.get("/ui/listings", async (req: any, reply) => {
 app.post("/users", async (req: any, reply) => {
   const body = req.body;
   const returnTo = typeof body.returnTo === "string" && body.returnTo ? body.returnTo : "/ui/users";
-
-  await prisma.user.create({
+  const createdUser = await prisma.user.create({
     data: {
       name: body.name ? String(body.name).trim() || null : null,
       telegramChatId: body.chatId,
     },
   });
+
+  await persistUserBillingState(prisma, {
+    userId: createdUser.id,
+    planId: body.planId,
+    expiresAt: body.planExpiresAt,
+  });
+
+  await enforceSearchSubscriptionLimits(prisma, createdUser.id);
+
+  reply.redirect(returnTo);
+});
+
+app.post("/users/update", async (req: any, reply) => {
+  const body = req.body;
+  const returnTo = typeof body.returnTo === "string" && body.returnTo ? body.returnTo : "/ui/users";
+  const userId = body.id;
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      name: body.name ? String(body.name).trim() || null : null,
+      telegramChatId: body.chatId,
+    },
+  });
+
+  await persistUserBillingState(prisma, {
+    userId,
+    planId: body.planId,
+    expiresAt: body.planExpiresAt,
+  });
+
+  await enforceSearchSubscriptionLimits(prisma, userId);
 
   reply.redirect(returnTo);
 });
@@ -943,7 +1043,16 @@ app.post("/subscriptions", async (req: any, reply) => {
   const sellerTypeFilter = body.sellerTypeFilter === "private" ? "private" : "all";
   const maxPrice = parseOptionalNumber(body.maxPrice);
   const rooms = parseRoomsSelection(body.rooms);
-  const intervalMinutes = parseOptionalNumber(body.intervalMinutes) ?? 30;
+  const requestedIntervalMinutes = parseOptionalNumber(body.intervalMinutes) ?? 30;
+  const owner = userId
+    ? await prisma.user.findUnique({
+        where: { id: userId },
+        select: { planId: true },
+      })
+    : null;
+  const intervalMinutes = userId
+    ? Math.max(requestedIntervalMinutes, getBillingPlan(owner?.planId).minimumIntervalMinutes)
+    : requestedIntervalMinutes;
 
   const subscription = await prisma.subscription.create({
     data: {
@@ -963,6 +1072,7 @@ app.post("/subscriptions", async (req: any, reply) => {
     });
 
     if (user) {
+      await enforceSearchSubscriptionLimits(prisma, user.id);
       const cutoff = new Date(Date.now() - subscription.intervalMinutes * 60_000);
       const recentListings = await prisma.listing.findMany({
         where: {

@@ -58,7 +58,15 @@ function formatText(value: string | number | null) {
 
 function formatPrice(value: string | number | null) {
   if (value == null || value === "") return "—";
-  return `<b>$${escapeHtml(value)}</b>`;
+
+  const raw = String(value).trim();
+  const [integerPart, decimalPart] = raw.split(".");
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const formatted = decimalPart != null && decimalPart !== ""
+    ? `${formattedInteger}.${decimalPart}`
+    : formattedInteger;
+
+  return `<b>${escapeHtml(formatted)} $</b>`;
 }
 
 function formatRooms(rooms: number | null) {

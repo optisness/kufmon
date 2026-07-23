@@ -29,7 +29,7 @@ describe("telegramMessage", () => {
     ).toBe("https://re.kufar.by/vi/grodno/kupit/listing/1059448809");
   });
 
-  it("formats grouped telegram messages with bold titles and price-first layout", () => {
+  it("formats grouped telegram messages with bold titles and spaced dollar prices", () => {
     const message = formatTelegramBatchMessage([
       {
         eventType: "NEW",
@@ -63,16 +63,16 @@ describe("telegramMessage", () => {
       },
     ]);
 
-    expect(message).toContain("🆕 Новые");
-    expect(message).toContain("♻️ Измененные");
-    expect(message).toContain("🗑 Удаленные");
+    expect(message).toContain("\u041d\u043e\u0432\u044b\u0435");
+    expect(message).toContain("\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u043d\u044b\u0435");
+    expect(message).toContain("\u0423\u0434\u0430\u043b\u0435\u043d\u043d\u044b\u0435");
     expect(message).toContain("Подписка: Minsk 2 rooms");
     expect(message).toContain("🏢 <b>Apartment listing</b>");
     expect(message).toContain("🏭 <b>Office space</b>");
     expect(message).toContain("🌾 <b>Plot listing</b>");
-    expect(message).toContain("Цена: <b>$167770.8</b>");
+    expect(message).toContain("Цена: <b>167 770.8 $</b>");
     expect(message).toContain("Комнат: 2к");
-    expect(message).toContain("Изменено: цена <b>$95000</b> → <b>$90000</b>, описание добавлено, фото добавлено");
+    expect(message).toContain("Изменено: цена <b>95 000 $</b> → <b>90 000 $</b>, описание добавлено, фото добавлено");
     expect(message).toContain("https://re.kufar.by/vi/grodno/kupit/kvartiru/1059448809");
   });
 });

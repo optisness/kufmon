@@ -35,10 +35,45 @@ model User {
   id             String  @id @default(cuid())
   name           String?
   telegramChatId String
+  planId         String?
+  planExpiresAt  DateTime?
 
+  plan           Plan? @relation(fields: [planId], references: [id])
   subscriptions Subscription[]
+  billingSubscriptions UserSubscription[]
 
   createdAt DateTime @default(now())
+}
+
+model Plan {
+  id                     String  @id
+  name                   String
+  subscriptionsLimit     Int?
+  minimumIntervalMinutes Int
+  enabled                Boolean @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  users                 User[]
+  billingSubscriptions  UserSubscription[]
+}
+
+model UserSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  planId     String
+  status     String   @default("ACTIVE")
+  startedAt  DateTime @default(now())
+  expiresAt  DateTime
+  autoRenew  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId, status])
+  @@index([expiresAt])
 }
 
 model AdEvent {

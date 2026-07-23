@@ -36,6 +36,17 @@ describe("admin sorting helpers", () => {
       { telegramChatId: "asc" },
     ]);
 
+    expect(getUsersOrderBy({ key: "plan", direction: "desc" } as any)).toEqual([
+      { plan: { name: "desc" } },
+      { planExpiresAt: "desc" },
+      { name: "asc" },
+    ]);
+
+    expect(getUsersOrderBy({ key: "expiresAt", direction: "asc" } as any)).toEqual([
+      { planExpiresAt: "asc" },
+      { name: "asc" },
+    ]);
+
     expect(getSubscriptionsOrderBy({ key: "interval", direction: "desc" } as any)).toEqual([
       { intervalMinutes: "desc" },
       { name: "asc" },

@@ -19,6 +19,8 @@ Current implementation notes:
 - The admin tables now paginate with `page` and `limit` query parameters instead of rendering the full collection in a single scroll.
 - Sorting in the admin tables is server-side and uses `sort` and `dir` query parameters, so sorted results stay consistent across paginated pages.
 - Row numbers continue across pages instead of resetting to `1` on every page.
+- The users page now shows each user's tariff and payment end date, and both columns can be sorted.
+- The users page also supports inline editing of the user name, Telegram chat ID, tariff, and payment end date.
 - In the subscriptions table, the active-state toggle is shown as `Enabled` or `Disabled` so the current state is unambiguous.
 - The listings page sorts price using the normalized numeric value, so the `"$"` prefix shown in the table does not break sorting.
 - The listings page also shows the `missingCount` column, which represents consecutive failed sync attempts before a listing becomes `REMOVED`.

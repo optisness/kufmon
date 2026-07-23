@@ -180,7 +180,7 @@ describe('Kufar sync', () => {
     expect(message).toContain('🆕 Новые');
     expect(message).toContain('🏢 <b>Test listing</b>');
     expect(message).toContain('Test listing');
-    expect(message).toContain('Цена: <b>$400</b>');
+    expect(message).toContain('Цена: <b>400 $</b>');
     expect(message).toContain('Комнат: 2к');
     expect(message).toContain('https://re.kufar.by/vi/grodno/kupit/kvartiru/1');
     expect(metrics.adsFetched).toBe(1);
@@ -361,8 +361,8 @@ describe('Kufar sync', () => {
     expect(message).toContain('Подписка: Minsk 2 rooms');
     expect(message).toContain('♻️ Измененные');
     expect(message).toContain('Test listing');
-    expect(message).toContain('Цена: <b>$500</b>');
-    expect(message).toContain('Изменено: цена <b>$600</b> → <b>$500</b>');
+    expect(message).toContain('Цена: <b>500 $</b>');
+    expect(message).toContain('Изменено: цена <b>600 $</b> → <b>500 $</b>');
     expect(message).toContain('описание изменено');
     expect(message).toContain('фото изменено');
     expect(metrics.adsFetched).toBe(1);
@@ -823,3 +823,4 @@ describe('Kufar sync', () => {
     ).toBe(false);
   });
 });
+
