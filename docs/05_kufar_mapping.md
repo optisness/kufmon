@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Draft  
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-23
 
 ---
 
@@ -169,7 +169,7 @@ NULL
 
 # Image Mapping
 
-Current implementation stores only the first image.
+Current implementation stores only the first image in the normalized listing row.
 
 Incoming:
 
@@ -189,7 +189,9 @@ If there are no images:
 image_url = NULL
 ```
 
-Future versions may store all images separately.
+For `NEW` history events, the sync layer now stores the full address, the full untruncated description, and all image links alongside the usual normalized snapshot. Those extra fields are kept only in the event payload and do not change the normalized listing schema.
+
+Future versions may store all images separately in the listing table as well.
 
 ---
 

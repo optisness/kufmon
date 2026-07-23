@@ -14,6 +14,12 @@ export async function fetchKufarItem(id: string) {
   return await res.text();
 }
 
+export type KufarListingDetails = {
+  address: string | null;
+  fullDescription: string | null;
+  imageUrls: string[];
+};
+
 export function parseTitle(html: string) {
   const match = html.match(/<title>(.*?)<\/title>/);
 
@@ -71,4 +77,122 @@ export function extractJson(html: string) {
   } catch {
     return null;
   }
+}
+
+function normalizeText(value: any) {
+  if (value == null) return null;
+  const text = String(value).replace(/\s+/g, " ").trim();
+  return text.length > 0 ? text : null;
+}
+
+function normalizeImageUrl(value: string) {
+  const text = normalizeText(value);
+  if (!text) return null;
+
+  if (/^https?:\/\//i.test(text)) {
+    return text;
+  }
+
+  const stripped = text.replace(/^\/+/, "");
+  if (!stripped) return null;
+
+  return `https://rms.kufar.by/v1/gallery/${stripped}`;
+}
+
+function walkJson(node: any, visitor: (key: string, value: any) => void) {
+  if (!node || typeof node !== "object") return;
+
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      walkJson(item, visitor);
+    }
+    return;
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    visitor(key, value);
+    walkJson(value, visitor);
+  }
+}
+
+function collectStringsFromSubtree(node: any) {
+  const values: string[] = [];
+
+  function walk(value: any) {
+    if (value == null) return;
+    if (typeof value === "string") {
+      const text = normalizeText(value);
+      if (text) values.push(text);
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        walk(item);
+      }
+      return;
+    }
+    if (typeof value === "object") {
+      for (const child of Object.values(value)) {
+        walk(child);
+      }
+    }
+  }
+
+  walk(node);
+  return values;
+}
+
+function collectValuesByKeyPattern(root: any, pattern: RegExp) {
+  const values: string[] = [];
+
+  walkJson(root, (key, value) => {
+    if (!pattern.test(key)) return;
+
+    values.push(...collectStringsFromSubtree(value));
+  });
+
+  return values;
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+}
+
+function pickBestDescription(values: string[]) {
+  const filtered = values
+    .map((value) => value.replace(/\s+/g, " ").trim())
+    .filter((value) => value.length > 0);
+
+  if (filtered.length === 0) {
+    return null;
+  }
+
+  filtered.sort((a, b) => b.length - a.length);
+  return filtered[0] ?? null;
+}
+
+export function extractListingDetails(html: string): KufarListingDetails {
+  const json = extractJson(html);
+
+  const addressCandidates = uniqueStrings([
+    ...collectValuesByKeyPattern(json, /address|addr|street|location_text|address_text|address_label/i),
+  ]);
+  const descriptionCandidates = uniqueStrings([
+    ...collectValuesByKeyPattern(json, /body|description|text|content|details|about|summary/i),
+  ]);
+  const imageCandidates = uniqueStrings([
+    ...collectValuesByKeyPattern(json, /image|photo|gallery|media|picture/i),
+  ]);
+
+  const imageUrls = uniqueStrings(
+    imageCandidates
+      .map((candidate) => normalizeImageUrl(candidate))
+      .filter((candidate): candidate is string => Boolean(candidate)),
+  );
+
+  return {
+    address: addressCandidates[0] ?? null,
+    fullDescription: pickBestDescription(descriptionCandidates),
+    imageUrls,
+  };
 }

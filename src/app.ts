@@ -120,6 +120,18 @@ function formatPrice(value: number | string | null | undefined) {
   return `$${String(value)}`;
 }
 
+function formatDateTime(value: string | Date | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("ru-RU", { timeZone: "Europe/Minsk" });
+}
+
+function formatLastEventLabel(event: { eventType: string; createdAt: string | Date } | null | undefined) {
+  if (!event) return "—";
+  return `${event.eventType} · ${formatDateTime(event.createdAt)}`;
+}
+
 function splitMessageChunks(text: string, chunkSize = 3500) {
   return text.match(new RegExp(`[\\s\\S]{1,${chunkSize}}`, "g")) || [];
 }
@@ -591,6 +603,7 @@ function renderSubscriptionsPage(options: {
 function renderListingsPage(options: {
   listings: any[];
   categoryLabelByValue: Record<string, string>;
+  latestEventByListingId: Map<string, { eventType: string; createdAt: Date }>;
   pagination: ReturnType<typeof buildPaginationMeta>;
   query: Record<string, unknown>;
   currentSort: { key: string; direction: "asc" | "desc" } | null;
@@ -613,6 +626,7 @@ function renderListingsPage(options: {
             ${renderSortableHeader("Цена", "price", "number", options.currentSort)}
             ${renderSortableHeader("Комнаты", "rooms", "number", options.currentSort)}
             ${renderSortableHeader("Неудачных попыток", "missingCount", "number", options.currentSort)}
+            ${renderSortableHeader("Последнее событие", "lastEventAt", "string", options.currentSort)}
             <th>Ссылка</th>
             ${renderSortableHeader("Активно", "active", "boolean", options.currentSort)}
           </tr>
@@ -628,6 +642,7 @@ function renderListingsPage(options: {
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td>${l.rooms ?? "-"}</td>
               <td>${Number.isFinite(Number(l.missingCount)) ? Number(l.missingCount) : 0}</td>
+              <td>${escapeHtml(formatLastEventLabel(options.latestEventByListingId.get(l.id)))}</td>
               <td>
                 <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" style="color:#007bff; text-decoration:none;">открыть</a>
                 <br/>
@@ -851,7 +866,7 @@ app.get("/ui/listings", async (req: any, reply) => {
     },
   });
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
-  const sortState = parseAdminSortState(req.query ?? {}, ["title", "category", "seller", "price", "rooms", "missingCount", "active"]);
+  const sortState = parseAdminSortState(req.query ?? {}, ["title", "category", "seller", "price", "rooms", "missingCount", "lastEventAt", "active"]);
   const listings = await prisma.listing.findMany({
     skip: pagination.offset,
     take: pagination.pageSize,
@@ -863,6 +878,30 @@ app.get("/ui/listings", async (req: any, reply) => {
     },
     orderBy: getListingsOrderBy(sortState),
   });
+  const latestEvents = listings.length > 0
+    ? await prisma.adEvent.findMany({
+        where: { listingId: { in: listings.map((listing) => listing.id) } },
+        orderBy: [
+          { listingId: "asc" },
+          { createdAt: "desc" },
+        ],
+        select: {
+          listingId: true,
+          eventType: true,
+          createdAt: true,
+        },
+      })
+    : [];
+  const latestEventByListingId = new Map<string, { eventType: string; createdAt: Date }>();
+
+  for (const event of latestEvents) {
+    if (!latestEventByListingId.has(event.listingId)) {
+      latestEventByListingId.set(event.listingId, {
+        eventType: event.eventType,
+        createdAt: event.createdAt,
+      });
+    }
+  }
   const categoryOptions = [
     { value: KUFAR_CATEGORIES.apartments, label: "Квартира" },
     { value: KUFAR_CATEGORIES.houses, label: "Дом" },
@@ -876,6 +915,7 @@ app.get("/ui/listings", async (req: any, reply) => {
   reply.type("text/html; charset=utf-8").send(renderListingsPage({
     listings,
     categoryLabelByValue,
+    latestEventByListingId,
     pagination,
     query: req.query ?? {},
     currentSort: sortState,

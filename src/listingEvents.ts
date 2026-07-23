@@ -10,6 +10,9 @@ export type ListingSnapshot = {
   sellerType: "company" | "private" | null;
   url: string;
   location: string | null;
+  address?: string | null;
+  fullDescription?: string | null;
+  imageUrls?: string[];
 };
 
 export type ListingChangeField = "price" | "description" | "imageUrl" | "rooms";
@@ -152,8 +155,13 @@ export function formatEventSummary(eventType: string, changesJson: any) {
       `Цена: ${formatPrice(snapshot.price)}`,
       `Комнаты: ${formatValue(snapshot.rooms)}`,
     ];
+    if (snapshot.address) parts.push(`Адрес: ${snapshot.address}`);
+    if (snapshot.fullDescription) parts.push(`Полное описание: ${snapshot.fullDescription}`);
     if (snapshot.description) parts.push(`Описание: ${snapshot.description}`);
     if (snapshot.imageUrl) parts.push(`Фото: ${snapshot.imageUrl}`);
+    if (Array.isArray(snapshot.imageUrls) && snapshot.imageUrls.length > 0) {
+      parts.push(`Все фото: ${snapshot.imageUrls.join(", ")}`);
+    }
     return parts.join("\n");
   }
 

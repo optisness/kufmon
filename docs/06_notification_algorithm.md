@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Draft  
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-23
 
 ---
 
@@ -255,6 +255,7 @@ Each listing card starts with a category-specific icon, then shows the title in 
 The current template keeps the text black and does not use colored category labels or accents.
 Price-only updates below 50 USD are ignored and do not create a `CHANGED` event.
 For `rooms`, the subscription filter supports the special `5+` value, which matches any listing with five or more rooms.
+When the sync creates a `NEW` history event, the payload stores the normalized snapshot plus the full address, the full description text, and all photo URLs for later inspection in the admin history view.
 
 ## NEW
 

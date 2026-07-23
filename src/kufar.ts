@@ -4,6 +4,7 @@ import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
 import { matchesSubscriptionListing } from "./subscriptions.js";
 import { formatTelegramBatchMessage, type TelegramEventType } from "./telegramMessage.js";
+import { extractListingDetails, fetchKufarItem } from "./kufarItem.js";
 import {
   buildChangedEventPayload,
   buildContentHash,
@@ -160,6 +161,35 @@ async function fetchKufarAdsPages(options: Parameters<typeof fetchKufarMap>[0], 
   return fetchedAds;
 }
 
+async function enrichNewListingSnapshot(
+  id: string,
+  snapshot: ReturnType<typeof normalizeKufarListing>,
+) {
+  try {
+    const html = await fetchKufarItem(id);
+    const details = extractListingDetails(html);
+
+    return {
+      ...snapshot,
+      address: details.address,
+      fullDescription: details.fullDescription ?? snapshot.description,
+      imageUrls: details.imageUrls.length > 0
+        ? details.imageUrls
+        : snapshot.imageUrl
+          ? [snapshot.imageUrl]
+          : [],
+    };
+  } catch (error) {
+    logger.warn({ id, error }, "Failed to enrich new listing snapshot");
+
+    return {
+      ...snapshot,
+      fullDescription: snapshot.description,
+      imageUrls: snapshot.imageUrl ? [snapshot.imageUrl] : [],
+    };
+  }
+}
+
 function matchesUserSubscriptions(
   subscriptionsByUser: Record<string, any[]>,
   userId: string,
@@ -303,6 +333,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     if (!existing) {
       incMetric("newListings");
       logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "New listing");
+      const newSnapshot = await enrichNewListingSnapshot(ad.id, ad.snapshot);
 
       await prisma.listing.create({
         data: {
@@ -316,7 +347,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
         data: {
           listingId: ad.id,
           eventType: "NEW",
-          changesJson: buildNewEventPayload(ad.snapshot),
+          changesJson: buildNewEventPayload(newSnapshot),
         },
       });
 
@@ -347,6 +378,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     if (existing.isActive === false) {
       incMetric("newListings");
       logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "Listing restored");
+      const newSnapshot = await enrichNewListingSnapshot(ad.id, ad.snapshot);
 
       await prisma.listing.update({
         where: { id: ad.id },
@@ -360,7 +392,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
         data: {
           listingId: ad.id,
           eventType: "NEW",
-          changesJson: buildNewEventPayload(ad.snapshot),
+          changesJson: buildNewEventPayload(newSnapshot),
         },
       });
 

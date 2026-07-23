@@ -45,5 +45,10 @@ describe("admin sorting helpers", () => {
       { price: "asc" },
       { createdAt: "desc" },
     ]);
+
+    expect(getListingsOrderBy({ key: "lastEventAt", direction: "desc" } as any)).toEqual([
+      { events: { _max: { createdAt: "desc" } } },
+      { createdAt: "desc" },
+    ]);
   });
 });

@@ -104,6 +104,8 @@ export function getListingsOrderBy(sortState: AdminSortState | null): any[] {
       return [{ rooms: sortState.direction }, { createdAt: "desc" }];
     case "missingCount":
       return [{ missingCount: sortState.direction }, { createdAt: "desc" }];
+    case "lastEventAt":
+      return [{ events: { _max: { createdAt: sortState.direction } } }, { createdAt: "desc" }];
     case "active":
       return [{ isActive: sortState.direction }, { createdAt: "desc" }];
     default:

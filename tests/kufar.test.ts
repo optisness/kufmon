@@ -150,6 +150,20 @@ describe('Kufar sync', () => {
           ],
         }),
       },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "address": "Grodno, Lenina 1",
+              "body": "Full description for Test listing",
+              "images": [
+                { "path": "adim1/example.jpg" }
+              ]
+            };
+          </script>
+        `,
+      },
     ]);
 
     const result = await saveKufarAds();
@@ -238,12 +252,40 @@ describe('Kufar sync', () => {
           total: 2,
         }),
       },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "address": "Grodno, First page 1",
+              "body": "Full description for First page listing",
+              "images": [
+                { "path": "adim1/example.jpg" }
+              ]
+            };
+          </script>
+        `,
+      },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "address": "Grodno, Second page 1",
+              "body": "Full description for Second page listing",
+              "images": [
+                { "path": "adim1/example-2.jpg" }
+              ]
+            };
+          </script>
+        `,
+      },
     ]);
 
     const result = await saveKufarAds();
 
     expect(result).toBe(2);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(String(fetchMock.mock.calls[1]?.[0] ?? '')).toContain('cursor=cursor-page-2');
     expect(prismaMock.listing.create).toHaveBeenCalledTimes(2);
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(2);
@@ -292,6 +334,20 @@ describe('Kufar sync', () => {
             },
           ],
         }),
+      },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "address": "Grodno, Updated 1",
+              "body": "Full description for updated listing",
+              "images": [
+                { "path": "adim1/updated.jpg" }
+              ]
+            };
+          </script>
+        `,
       },
     ]);
 
@@ -356,6 +412,20 @@ describe('Kufar sync', () => {
           ],
         }),
       },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "address": "Grodno, Matching 1",
+              "body": "Full description for matching listing",
+              "images": [
+                { "path": "adim1/example.jpg" }
+              ]
+            };
+          </script>
+        `,
+      },
     ]);
 
     const result = await saveKufarAds();
@@ -408,6 +478,20 @@ describe('Kufar sync', () => {
             },
           ],
         }),
+      },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "address": "Grodno, Company 1",
+              "body": "Full description for company listing",
+              "images": [
+                { "path": "adim1/company.jpg" }
+              ]
+            };
+          </script>
+        `,
       },
     ]);
 
@@ -464,6 +548,20 @@ describe('Kufar sync', () => {
           ],
         }),
       },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "address": "Grodno, Category mismatch 1",
+              "body": "Full description for category mismatch listing",
+              "images": [
+                { "path": "adim1/example.jpg" }
+              ]
+            };
+          </script>
+        `,
+      },
     ]);
 
     const result = await saveKufarAds();
@@ -516,6 +614,20 @@ describe('Kufar sync', () => {
             },
           ],
         }),
+      },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "address": "Grodno, Company 1",
+              "body": "Full description for company listing",
+              "images": [
+                { "path": "adim1/company.jpg" }
+              ]
+            };
+          </script>
+        `,
       },
     ]);
 

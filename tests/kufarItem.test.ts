@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseListingData, parseSellerType } from '../src/kufarItem.js';
+import { extractListingDetails, parseListingData, parseSellerType } from '../src/kufarItem.js';
 
 describe('parseListingData', () => {
   it('parses title, price, rooms and area from html', () => {
@@ -35,5 +35,29 @@ describe('parseListingData', () => {
 
     expect(parseSellerType(companyHtml)).toBe('company');
     expect(parseSellerType(privateHtml)).toBe('private');
+  });
+
+  it('extracts address, full description and all photo urls from initial state json', () => {
+    const html = `
+      <script>
+        window.__INITIAL_STATE__ = {
+          "address": "Grodno, Lenina 1",
+          "body": "Full description text with many useful details about the listing.",
+          "images": [
+            { "path": "adim1/photo-1.jpg" },
+            { "url": "https://rms.kufar.by/v1/gallery/adim1/photo-2.jpg" }
+          ]
+        };
+      </script>
+    `;
+
+    expect(extractListingDetails(html)).toEqual({
+      address: 'Grodno, Lenina 1',
+      fullDescription: 'Full description text with many useful details about the listing.',
+      imageUrls: [
+        'https://rms.kufar.by/v1/gallery/adim1/photo-1.jpg',
+        'https://rms.kufar.by/v1/gallery/adim1/photo-2.jpg',
+      ],
+    });
   });
 });
