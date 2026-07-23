@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+﻿import Fastify from "fastify";
 import fastifyFormbody from "@fastify/formbody";
 import { prisma } from "./db.js";
 import { fetchKufarMap, saveKufarAds, KUFAR_CATEGORIES } from "./kufar.js";
@@ -9,6 +9,17 @@ import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } from "./subscriptions.js";
 import { formatEventSummary } from "./listingEvents.js";
 import { formatListingAttemptCount, formatListingEventAt } from "./listingTable.js";
+import {
+  ADMIN_LOGIN_LOCK_MS,
+  ADMIN_SESSION_COOKIE,
+  buildAdminSessionCookie,
+  buildClearedAdminSessionCookie,
+  clearAdminLoginState,
+  getAdminLoginLockState,
+  getAdminPasswordConfigured,
+  isAdminAuthenticated,
+  recordAdminLoginFailure,
+} from "./adminAuth.js";
 import {
   BILLING_PLANS,
   enforceSearchSubscriptionLimits,
@@ -37,6 +48,23 @@ import {
 
 const app = Fastify({
   logger,
+});
+
+app.addHook("onRequest", async (request, reply) => {
+  const path = String(request.raw.url ?? "/").split("?")[0];
+  const publicPaths = new Set(["/", "/login", "/logout"]);
+  if (publicPaths.has(path)) return;
+
+  const isAuthenticated = isAdminAuthenticated(request.headers.cookie);
+  if (isAuthenticated) return;
+
+  const apiPaths = ["/health", "/metrics", "/kufar", "/sync", "/test-tg"];
+  if (apiPaths.includes(path) || path.startsWith("/api/")) {
+    reply.code(401).send({ error: "Unauthorized" });
+    return;
+  }
+
+  reply.redirect("/");
 });
 
 function escapeHtml(value: unknown) {
@@ -149,6 +177,27 @@ function formatLastEventLabel(event: { eventType: string; createdAt: string | Da
   return formatListingEventAt(event.createdAt);
 }
 
+function compareLastEventDates(
+  a: { id: string; createdAt: Date; lastSeenAt: Date; isActive: boolean },
+  b: { id: string; createdAt: Date; lastSeenAt: Date; isActive: boolean },
+  latestEventByListingId: Map<string, { createdAt: Date }>,
+  direction: "asc" | "desc",
+) {
+  const eventA = latestEventByListingId.get(a.id)?.createdAt?.getTime() ?? Number.NEGATIVE_INFINITY;
+  const eventB = latestEventByListingId.get(b.id)?.createdAt?.getTime() ?? Number.NEGATIVE_INFINITY;
+  if (eventA !== eventB) {
+    return direction === "asc" ? eventA - eventB : eventB - eventA;
+  }
+
+  const createdA = a.createdAt.getTime();
+  const createdB = b.createdAt.getTime();
+  if (createdA !== createdB) {
+    return createdB - createdA;
+  }
+
+  return a.id.localeCompare(b.id);
+}
+
 function buildPlanOptionMarkup(selectedPlanId?: string | null) {
   return getBillingPlanOptions()
     .map((plan) => {
@@ -220,10 +269,11 @@ async function cleanupStaleListings() {
 
 function buildAdminNav(activePath: string) {
   const items = [
-    { href: "/ui", label: "Обзор" },
     { href: "/ui/users", label: "Пользователи" },
     { href: "/ui/subscriptions", label: "Подписки" },
     { href: "/ui/listings", label: "Объявления" },
+    { href: "/health", label: "Health" },
+    { href: "/sync", label: "Sync" },
   ];
 
   return items.map((item) => {
@@ -307,9 +357,6 @@ function renderAdminLayout(options: {
     <div class="header">
       <h1>Kufmon Admin UI</h1>
       <div class="nav">
-        <a href="/">← Dashboard</a>
-        <a href="/health">Health</a>
-        <a href="/metrics">Metrics</a>
         ${buildAdminNav(options.activePath)}
       </div>
     </div>
@@ -384,39 +431,101 @@ function renderAdminLayout(options: {
 </html>`;
 }
 
-function renderOverviewPage() {
-  return renderAdminLayout({
-    title: "Kufmon Admin UI",
-    activePath: "/ui",
-    body: `
-    <div class="section">
-      <h2>Обзор</h2>
-      <div class="page-grid">
-        <div class="page-card">
-          <h3>Пользователи</h3>
-          <p>Отдельная страница для списка и добавления пользователей.</p>
-          <a href="/ui/users">Открыть пользователей</a>
-        </div>
-        <div class="page-card">
-          <h3>Подписки</h3>
-          <p>Отдельная страница для фильтров и списка подписок.</p>
-          <a href="/ui/subscriptions">Открыть подписки</a>
-        </div>
-        <div class="page-card">
-          <h3>Объявления</h3>
-          <p>Отдельная страница для таблицы объявлений и истории.</p>
-          <a href="/ui/listings">Открыть объявления</a>
+async function getServiceStatus() {
+  let dbOk = false;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    dbOk = true;
+  } catch (_error) {
+    dbOk = false;
+  }
+
+  return {
+    db: dbOk,
+    telegram: !!process.env.TELEGRAM_TOKEN,
+    adminPassword: getAdminPasswordConfigured(),
+    uptime: process.uptime(),
+  };
+}
+
+function renderLandingPage(options: {
+  status: Awaited<ReturnType<typeof getServiceStatus>>;
+  error?: string | null;
+  lockedUntil?: number;
+  authenticated?: boolean;
+}) {
+  const now = Date.now();
+  const lockedUntil = options.lockedUntil ?? 0;
+  const remainingMs = Math.max(0, lockedUntil - now);
+  const lockedMinutes = remainingMs > 0 ? Math.ceil(remainingMs / 60_000) : 0;
+  const authenticated = Boolean(options.authenticated);
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kufmon Admin Login</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; min-height: 100vh; background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); color: #e2e8f0; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 40px 20px 60px; }
+    .hero { display:grid; gap:20px; grid-template-columns: 1.2fr 0.8fr; align-items:stretch; }
+    .panel { background: rgba(15, 23, 42, 0.88); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 18px; padding: 24px; box-shadow: 0 24px 80px rgba(0,0,0,.3); backdrop-filter: blur(10px); }
+    h1 { margin: 0 0 8px; font-size: 40px; line-height: 1.05; }
+    h2 { margin: 0 0 12px; font-size: 22px; color: #f8fafc; }
+    p { margin: 0; color: #cbd5e1; line-height: 1.55; }
+    .status-list { display:grid; gap:10px; margin-top: 18px; }
+    .status-item { display:flex; justify-content:space-between; gap:16px; padding:12px 14px; border-radius: 12px; background: rgba(30, 41, 59, 0.75); }
+    .status-item strong { color:#fff; }
+    .pill { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background: rgba(59, 130, 246, 0.15); color: #bfdbfe; font-size: 13px; }
+    .pill.ok { background: rgba(34, 197, 94, 0.18); color: #bbf7d0; }
+    .pill.bad { background: rgba(239, 68, 68, 0.18); color: #fecaca; }
+    .login-box { display:grid; gap:14px; }
+    label { display:block; margin-bottom:8px; color:#e2e8f0; font-weight:600; }
+    input { width:100%; box-sizing:border-box; padding:12px 14px; border-radius:12px; border:1px solid rgba(148, 163, 184, 0.28); background: rgba(15, 23, 42, 0.95); color:#fff; font-size:16px; }
+    input:focus { outline:none; border-color:#38bdf8; box-shadow:0 0 0 3px rgba(56, 189, 248, 0.15); }
+    button { width:100%; padding:12px 14px; border:none; border-radius:12px; background:#38bdf8; color:#082f49; font-weight:700; font-size:16px; cursor:pointer; }
+    button:hover { background:#0ea5e9; }
+    button:disabled, input:disabled { opacity:0.55; cursor:not-allowed; }
+    .hint { font-size: 13px; color: #94a3b8; }
+    .error { padding: 12px 14px; border-radius: 12px; background: rgba(239, 68, 68, 0.14); color: #fecaca; border: 1px solid rgba(239, 68, 68, 0.28); }
+    .success { padding: 12px 14px; border-radius: 12px; background: rgba(34, 197, 94, 0.14); color: #bbf7d0; border: 1px solid rgba(34, 197, 94, 0.25); }
+    .footer { margin-top: 18px; font-size: 13px; color: #94a3b8; }
+    @media (max-width: 760px) { .hero { grid-template-columns: 1fr; } h1 { font-size: 32px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="panel">
+        <div class="pill ${options.status.db ? "ok" : "bad"}">DB ${options.status.db ? "готова" : "недоступна"}</div>
+        <h1>Kufmon</h1>
+        <p>Статус сервиса и вход в админку владельца. После успешного пароля вы перейдёте сразу к пользователям.</p>
+        <div class="status-list">
+          <div class="status-item"><span>Сервис</span><strong>Running</strong></div>
+          <div class="status-item"><span>База</span><strong>${options.status.db ? "OK" : "Error"}</strong></div>
+          <div class="status-item"><span>Telegram</span><strong>${options.status.telegram ? "OK" : "Not configured"}</strong></div>
+          <div class="status-item"><span>Пароль</span><strong>${options.status.adminPassword ? "Configured" : "Missing"}</strong></div>
+          <div class="status-item"><span>Uptime</span><strong>${Math.floor(options.status.uptime)}s</strong></div>
         </div>
       </div>
+      <div class="panel">
+        <h2>${authenticated ? "Вход выполнен" : "Вход администратора"}</h2>
+        ${options.error ? `<div class="error">${escapeHtml(options.error)}</div>` : ""}
+        ${lockedUntil > now ? `<div class="error">Ввод пароля заблокирован на ${lockedMinutes} мин.</div>` : ""}
+        ${authenticated ? `<div class="success">Сессия активна. Можно перейти в админку.</div>` : ""}
+        <form method="POST" action="/login" class="login-box" ${lockedUntil > now ? "aria-disabled=\"true\"" : ""}>
+          <div>
+            <label for="password">Пароль</label>
+            <input id="password" name="password" type="password" placeholder="Введите пароль администратора" ${lockedUntil > now ? "disabled" : ""} required />
+          </div>
+          <button type="submit" ${lockedUntil > now ? "disabled" : ""}>Войти</button>
+        </form>
+        ${authenticated ? `<div class="footer"><a href="/ui/users" style="color:#7dd3fc; text-decoration:none;">Перейти к пользователям →</a></div>` : `<div class="footer">После 3 неверных попыток вход блокируется на 5 минут.</div>`}
+      </div>
     </div>
-
-    <div class="section">
-      <h2>Синхронизация</h2>
-      <button onclick="runSync()">▶ Запустить sync</button>
-      <span id="sync-result"></span>
-    </div>
-    `,
-  });
+  </div>
+</body>
+</html>`;
 }
 
 function renderUsersPage(options: {
@@ -732,81 +841,33 @@ function renderListingsPage(options: {
   });
 }
 
-app.get("/", async (req, reply) => {
-  const html = `
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <title>Kufmon Dashboard</title>
-  <style>
-    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
-    .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    h1 { color: #333; margin-bottom: 30px; }
-    .nav { display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
-    .nav a { padding: 10px 15px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; }
-    .nav a:hover { background: #0056b3; }
-    .card { background: #f9f9f9; padding: 15px; margin: 10px 0; border-left: 4px solid #007bff; border-radius: 4px; }
-    .card h3 { margin-top: 0; color: #007bff; }
-    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>🏠 Kufmon Dashboard</h1>
-    
-    <div class="nav">
-      <a href="/ui">📋 Admin UI</a>
-      <a href="/health">💚 Health Check</a>
-      <a href="/metrics">📊 Metrics</a>
-      <a href="/kufar">🏠 Kufar API</a>
-      <a href="/sync">🔄 Manual Sync</a>
-    </div>
+app.get("/", async (req: any, reply) => {
+  const status = await getServiceStatus();
+  const lockState = getAdminLoginLockState();
+  const error = typeof req.query?.error === "string"
+    ? req.query.error === "locked"
+      ? "Ввод пароля временно заблокирован."
+      : req.query.error === "config"
+        ? "Пароль администратора не настроен."
+        : "Неверный пароль."
+    : null;
 
-    <div class="card">
-      <h3>Status</h3>
-      <p><strong>Service:</strong> Running ✅</p>
-      <p><strong>Endpoint:</strong> <code>https://kufmon.onrender.com</code></p>
-    </div>
-
-    <div class="card">
-      <h3>Quick Links</h3>
-      <ul>
-        <li><a href="/ui">Go to Admin UI</a> - manage users, subscriptions, and listings</li>
-        <li><a href="/health">Check health</a> - database and Telegram status</li>
-        <li><a href="/metrics">View metrics</a> - sync stats and uptime</li>
-      </ul>
-    </div>
-
-    <div class="card">
-      <h3>API Documentation</h3>
-      <p>See <code>/ui</code> for the admin interface or refer to API docs for programmatic access.</p>
-    </div>
-  </div>
-</body>
-</html>
-  `;
-  reply.type("text/html; charset=utf-8").send(html);
+  reply.type("text/html; charset=utf-8").send(renderLandingPage({
+    status,
+    error,
+    lockedUntil: lockState.lockedUntil,
+    authenticated: isAdminAuthenticated(req.headers.cookie),
+  }));
 });
 
-
 app.get("/health", async () => {
-  let dbOk = false;
-  try {
-    // lightweight DB check
-    await prisma.$queryRaw`SELECT 1`;
-    dbOk = true;
-  } catch (err) {
-    dbOk = false;
-  }
-
-  const tgConfigured = !!process.env.TELEGRAM_TOKEN;
+  const status = await getServiceStatus();
 
   return {
     status: "ok",
-    db: dbOk,
-    telegram: tgConfigured,
-    uptime: process.uptime(),
+    db: status.db,
+    telegram: status.telegram,
+    uptime: status.uptime,
   };
 });
 
@@ -842,8 +903,55 @@ app.get("/sync", async (req: any) => {
   };
 });
 
+app.post("/login", async (req: any, reply) => {
+  const password = String(req.body?.password ?? "").trim();
+  const now = Date.now();
+  const lockState = getAdminLoginLockState(now);
+
+  if (lockState.locked) {
+    reply.redirect("/?error=locked");
+    return;
+  }
+
+  if (!getAdminPasswordConfigured()) {
+    reply.redirect("/?error=config");
+    return;
+  }
+
+  if (password && password === String(process.env.ADMIN_PASSWORD ?? "").trim()) {
+    clearAdminLoginState();
+    const cookie = buildAdminSessionCookie(now);
+    if (cookie) {
+      reply.header("Set-Cookie", cookie);
+    }
+    reply.redirect("/ui/users");
+    return;
+  }
+
+  const failure = recordAdminLoginFailure(now);
+  if (failure.shouldNotify) {
+    const chatId = String(process.env.ADMIN_TELEGRAM_CHAT_ID ?? "").trim();
+    if (chatId) {
+      await sendTelegram(
+        `⚠️ Kufmon admin login locked for ${Math.round(ADMIN_LOGIN_LOCK_MS / 60000)} minutes after ${3} failed attempts.`,
+        chatId,
+      );
+    } else {
+      logger.warn("ADMIN_TELEGRAM_CHAT_ID is not configured; skipping login lock notification");
+    }
+  }
+
+  reply.redirect(failure.locked ? "/?error=locked" : "/?error=bad");
+});
+
+app.get("/logout", async (_req, reply) => {
+  clearAdminLoginState();
+  reply.header("Set-Cookie", buildClearedAdminSessionCookie());
+  reply.redirect("/");
+});
+
 app.get("/ui", async (_req, reply) => {
-  reply.type("text/html; charset=utf-8").send(renderOverviewPage());
+  reply.redirect("/ui/users");
 });
 
 app.get("/ui/users", async (req: any, reply) => {
@@ -950,20 +1058,27 @@ app.get("/ui/listings", async (req: any, reply) => {
   });
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
   const sortState = parseAdminSortState(req.query ?? {}, ["title", "category", "seller", "price", "rooms", "missingCount", "lastEventAt", "active"]);
-  const listings = await prisma.listing.findMany({
-    skip: pagination.offset,
-    take: pagination.pageSize,
-    where: {
-      OR: [
-        { isActive: true },
-        { lastSeenAt: { gte: cutoff } },
-      ],
-    },
-    orderBy: getListingsOrderBy(sortState),
-  });
-  const latestEvents = listings.length > 0
+  const listingWhere = {
+    OR: [
+      { isActive: true },
+      { lastSeenAt: { gte: cutoff } },
+    ],
+  };
+  const shouldSortByLastEvent = sortState?.key === "lastEventAt";
+  const allListings = shouldSortByLastEvent
+    ? await prisma.listing.findMany({
+        where: listingWhere,
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      })
+    : await prisma.listing.findMany({
+        skip: pagination.offset,
+        take: pagination.pageSize,
+        where: listingWhere,
+        orderBy: getListingsOrderBy(sortState),
+      });
+  const latestEvents = allListings.length > 0
     ? await prisma.adEvent.findMany({
-        where: { listingId: { in: listings.map((listing) => listing.id) } },
+        where: { listingId: { in: allListings.map((listing) => listing.id) } },
         orderBy: [
           { listingId: "asc" },
           { createdAt: "desc" },
@@ -985,6 +1100,12 @@ app.get("/ui/listings", async (req: any, reply) => {
       });
     }
   }
+  const listings = shouldSortByLastEvent
+    ? allListings
+        .slice()
+        .sort((a, b) => compareLastEventDates(a, b, latestEventByListingId, sortState?.direction ?? "asc"))
+        .slice(pagination.offset, pagination.offset + pagination.pageSize)
+    : allListings;
   const categoryOptions = [
     { value: KUFAR_CATEGORIES.apartments, label: "Квартира" },
     { value: KUFAR_CATEGORIES.houses, label: "Дом" },
@@ -1221,3 +1342,4 @@ await app.listen({
 
 // 4. cron ПОСЛЕ listen
 startCron();
+

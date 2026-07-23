@@ -60,6 +60,7 @@ const installFetchMock = (responses: any[]) => {
 describe('Kufar sync', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    delete process.env.ADMIN_TELEGRAM_CHAT_ID;
     prismaMock.$transaction.mockImplementation(async (cb) => cb(prismaMock));
     Object.keys(metrics).forEach((key) => {
       metrics[key as keyof typeof metrics] = 0;
@@ -108,6 +109,22 @@ describe('Kufar sync', () => {
     const url = buildKufarSearchUrl();
 
     expect(url).toContain('size=100');
+  });
+
+  it('alerts the admin when the Kufar response shape changes', async () => {
+    process.env.ADMIN_TELEGRAM_CHAT_ID = '123';
+    sendTelegramMock.mockResolvedValue(true);
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+        }),
+      },
+    ]);
+
+    await expect(fetchKufarMap()).rejects.toThrow('Unexpected Kufar response format');
+    expect(sendTelegramMock).toHaveBeenCalledTimes(1);
   });
 
   it('creates a new listing and sends a notification for new matching ads', async () => {

@@ -14,8 +14,9 @@ The API is independent of the implementation language and runtime.
 
 Current implementation notes:
 
-- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (health, metrics, basic listings, `/sync`, `/kufar`, UI pages and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
-- The admin UI is split into separate pages: `/ui` for overview, `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings.
+- The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (public login page, protected admin pages, health, sync, metrics, Kufar debug endpoints, and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
+- The public landing page at `/` shows service status and a password field. A valid password issues an authenticated admin session and redirects to `/ui/users`.
+- The admin UI is split into protected pages: `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings. The visible nav after login only links to Users, Subscriptions, Listings, Health, and Sync.
 - The admin tables now paginate with `page` and `limit` query parameters instead of rendering the full collection in a single scroll.
 - Sorting in the admin tables is server-side and uses `sort` and `dir` query parameters, so sorted results stay consistent across paginated pages.
 - Row numbers continue across pages instead of resetting to `1` on every page.
@@ -26,6 +27,8 @@ Current implementation notes:
 - The listings page also shows the `missingCount` column, which represents consecutive failed sync attempts before a listing becomes `REMOVED`.
 - The listings page now also shows and sorts by the timestamp of the latest `NEW` / `CHANGED` / `REMOVED` event, so operators can quickly see how recently a listing changed.
 - The `NEW` history payload includes the normalized snapshot plus the full address, full description, and all photo URLs, but those extra fields are only used in the admin history view.
+- `/metrics` and `/kufar` remain protected debug endpoints and are not shown in the main navigation. `metrics` returns uptime plus a few counters; `kufar` returns the raw Kufar search payload.
+- Admin login attempts are rate-limited: three wrong passwords lock the form for five minutes and trigger a Telegram notification to the admin.
 
 Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.
 
@@ -33,15 +36,12 @@ Future deployments may target Cloud Run, Docker, or other runtimes without chang
 
 # Authentication
 
-V1:
+The admin interface uses a password-protected browser session:
 
-Bearer Token
-
-```
-
-Authorization: Bearer <token>
-
-```
+- the landing page at `/` accepts the admin password;
+- a successful login sets an HTTP-only session cookie;
+- protected routes redirect back to `/` when the cookie is missing or invalid;
+- three failed attempts lock the form for five minutes and notify the admin in Telegram.
 
 ---
 

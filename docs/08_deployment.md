@@ -136,6 +136,7 @@ Required configuration.
 | PORT | HTTP port |
 | DATABASE_URL | PostgreSQL connection |
 | TELEGRAM_BOT_TOKEN | Telegram bot token |
+| ADMIN_PASSWORD | Password for the protected admin landing page |
 | KUFAR_API_URL | Kufar endpoint |
 | LOG_LEVEL | Logger level |
 
@@ -143,6 +144,7 @@ Optional:
 
 | Variable | Description |
 |------------|-------------|
+| ADMIN_TELEGRAM_CHAT_ID | Telegram chat ID for admin lockout and format-change alerts |
 | SYNC_INTERVAL | Scheduler interval |
 | REQUEST_TIMEOUT | HTTP timeout |
 | USER_AGENT | HTTP User-Agent |

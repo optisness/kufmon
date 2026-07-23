@@ -58,8 +58,8 @@ describe("admin sorting helpers", () => {
     ]);
 
     expect(getListingsOrderBy({ key: "lastEventAt", direction: "desc" } as any)).toEqual([
-      { events: { _max: { createdAt: "desc" } } },
       { createdAt: "desc" },
+      { id: "asc" },
     ]);
   });
 });

@@ -15,6 +15,9 @@ import {
 } from "./listingEvents.js";
 
 const logger = createLogger({ module: "kufar" });
+const KUFAR_FORMAT_ALERT_COOLDOWN_MS = 60 * 60 * 1000;
+let lastKufarFormatAlertSignature = "";
+let lastKufarFormatAlertAt = 0;
 
 const KUFAR_DEFAULT_GTSY = "country-belarus~province-grodnenskaja_oblast~locality-grodno";
 
@@ -79,6 +82,52 @@ async function fetchWithRetry(url: string, options: any = {}, retries = 3, backo
   }
 }
 
+function getAdminAlertChatId() {
+  return String(process.env.ADMIN_TELEGRAM_CHAT_ID ?? "").trim() || null;
+}
+
+function validateKufarSearchResponse(data: any) {
+  const issues: string[] = [];
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    issues.push("root payload is not an object");
+    return issues;
+  }
+
+  if (!Array.isArray(data.ads)) {
+    issues.push("ads is not an array");
+  }
+
+  return issues;
+}
+
+async function notifyAdminAboutKufarFormatChange(issues: string[], sample: unknown) {
+  const signature = issues.join(" | ");
+  const now = Date.now();
+
+  if (lastKufarFormatAlertSignature === signature && now - lastKufarFormatAlertAt < KUFAR_FORMAT_ALERT_COOLDOWN_MS) {
+    return;
+  }
+
+  lastKufarFormatAlertSignature = signature;
+  lastKufarFormatAlertAt = now;
+
+  const chatId = getAdminAlertChatId();
+  if (!chatId) {
+    logger.warn({ issues }, "Kufar response format changed, but ADMIN_TELEGRAM_CHAT_ID is not configured");
+    return;
+  }
+
+  await sendTelegram(
+    [
+      "⚠️ Kufar response format changed",
+      `Issues: ${issues.join(", ")}`,
+      `Sample: ${JSON.stringify(sample).slice(0, 1000)}`,
+    ].join("\n"),
+    chatId,
+  );
+}
+
 export async function fetchKufarMap(options?: Parameters<typeof buildKufarSearchUrl>[0]) {
   const url = buildKufarSearchUrl(options);
 
@@ -88,7 +137,15 @@ export async function fetchKufarMap(options?: Parameters<typeof buildKufarSearch
     },
   });
 
-  return res.json();
+  const data = await res.json();
+  const issues = validateKufarSearchResponse(data);
+
+  if (issues.length > 0) {
+    await notifyAdminAboutKufarFormatChange(issues, data);
+    throw new Error(`Unexpected Kufar response format: ${issues.join("; ")}`);
+  }
+
+  return data;
 }
 
 export { buildKufarSearchUrl };

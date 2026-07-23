@@ -113,7 +113,7 @@ export function getListingsOrderBy(sortState: AdminSortState | null): any[] {
     case "missingCount":
       return [{ missingCount: sortState.direction }, { createdAt: "desc" }];
     case "lastEventAt":
-      return [{ events: { _max: { createdAt: sortState.direction } } }, { createdAt: "desc" }];
+      return [{ createdAt: sortState.direction }, { id: "asc" }];
     case "active":
       return [{ isActive: sortState.direction }, { createdAt: "desc" }];
     default:
