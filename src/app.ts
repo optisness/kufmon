@@ -52,7 +52,7 @@ const app = Fastify({
 
 app.addHook("onRequest", async (request, reply) => {
   const path = String(request.raw.url ?? "/").split("?")[0];
-  const publicPaths = new Set(["/", "/login", "/logout", "/health"]);
+  const publicPaths = new Set(["/", "/login", "/logout", "/health", "/apply"]);
   if (publicPaths.has(path)) return;
 
   const isAuthenticated = isAdminAuthenticated(request.headers.cookie);
@@ -528,6 +528,41 @@ function renderLandingPage(options: {
 </html>`;
 }
 
+function renderApplicationFormPage() {
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kufmon Application Form</title>
+  <style>
+    body { margin: 0; min-height: 100vh; font-family: Arial, sans-serif; background: linear-gradient(180deg, #111827 0%, #1f2937 100%); color: #f8fafc; }
+    .wrap { max-width: 820px; margin: 0 auto; padding: 28px 16px 40px; }
+    .panel { background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 18px; padding: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.28); }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { margin: 0 0 18px; color: #cbd5e1; line-height: 1.5; }
+    .form-shell { overflow: hidden; border-radius: 16px; background: #fff; min-height: 1020px; }
+    iframe { display:block; width:100%; min-height: 1020px; border:0; }
+    .footer { margin-top: 14px; font-size: 13px; color: #94a3b8; }
+    a { color: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>Заявка</h1>
+      <p>Заполните форму ниже. Если страница открыта из Telegram, можно отправить её сразу в ответ боту.</p>
+      <div class="form-shell">
+        <script src="https://forms.yandex.ru/_static/embed.js"></script>
+        <iframe src="https://forms.yandex.ru/u/6a620e874936395b9dc66a9a?iframe=1" frameborder="0" name="ya-form-6a620e874936395b9dc66a9a"></iframe>
+      </div>
+      <div class="footer">Если форма не загрузилась, откройте страницу заново или проверьте блокировщик контента.</div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 function renderUsersPage(options: {
   users: any[];
   selectedUser: any | null;
@@ -788,7 +823,6 @@ function renderListingsPage(options: {
     body: `
     <div class="section">
       <h2>Объявления</h2>
-      <p>Пагинированный список объявлений.</p>
       <table data-sort-table="listings">
         <thead>
           <tr>
@@ -869,6 +903,10 @@ app.get("/health", async () => {
     telegram: status.telegram,
     uptime: status.uptime,
   };
+});
+
+app.get("/apply", async (_req, reply) => {
+  reply.type("text/html; charset=utf-8").send(renderApplicationFormPage());
 });
 
 app.get("/metrics", async () => {

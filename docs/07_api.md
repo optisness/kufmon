@@ -16,6 +16,7 @@ Current implementation notes:
 
 - The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (public login page, protected admin pages, health, sync, metrics, Kufar debug endpoints, and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
 - The public landing page at `/` shows service status and a password field. A valid password issues an authenticated admin session and redirects to `/ui/users`.
+- The public application page at `/apply` embeds the Yandex Form used from the Telegram bot.
 - The admin UI is split into protected pages: `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings. The visible nav after login only links to Users, Subscriptions, Listings, Health, and Sync.
 - The admin tables now paginate with `page` and `limit` query parameters instead of rendering the full collection in a single scroll.
 - Sorting in the admin tables is server-side and uses `sort` and `dir` query parameters, so sorted results stay consistent across paginated pages.
