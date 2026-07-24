@@ -1,5 +1,5 @@
 import { prisma } from "./db.js";
-import { sendTelegram } from "./telegram.js";
+import { sendTelegram, sendTrackedTelegram } from "./telegram.js";
 import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
 import { matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
@@ -668,7 +668,11 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     const chunks = splitTelegramMessageChunks(text);
 
     for (const chunk of chunks) {
-      const ok = await sendTelegram(chunk, user.telegramChatId, { parseMode: "HTML" });
+      const ok = await sendTrackedTelegram(chunk, user.telegramChatId, {
+        userId: user.id,
+        userLabel: user.name?.trim() || user.telegramChatId,
+        purpose: "kufar_notification",
+      }, { parseMode: "HTML" });
       if (ok) notificationsSent += 1;
     }
   }

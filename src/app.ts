@@ -3,7 +3,7 @@ import fastifyFormbody from "@fastify/formbody";
 import { prisma } from "./db.js";
 import { fetchKufarMap, saveKufarAds, KUFAR_CATEGORIES } from "./kufar.js";
 import { startCron } from "./cron.js";
-import { sendTelegram } from "./telegram.js";
+import { sendTrackedTelegram } from "./telegram.js";
 import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
@@ -1166,9 +1166,12 @@ app.post("/login", async (req: any, reply) => {
   if (failure.shouldNotify) {
     const chatId = String(process.env.ADMIN_TELEGRAM_CHAT_ID ?? "").trim();
     if (chatId) {
-      await sendTelegram(
+      await sendTrackedTelegram(
         `⚠️ Kufmon admin login locked for ${Math.round(ADMIN_LOGIN_LOCK_MS / 60000)} minutes after ${3} failed attempts.`,
         chatId,
+        {
+          purpose: "admin_login_lock",
+        },
       );
     } else {
       logger.warn("ADMIN_TELEGRAM_CHAT_ID is not configured; skipping login lock notification");
@@ -1479,7 +1482,11 @@ app.post("/subscriptions", async (req: any, reply) => {
         ));
 
         for (const chunk of chunks) {
-          await sendTelegram(chunk, user.telegramChatId, { parseMode: "HTML" });
+          await sendTrackedTelegram(chunk, user.telegramChatId, {
+            userId: user.id,
+            userLabel: user.name?.trim() || user.telegramChatId,
+            purpose: "subscription_backfill",
+          }, { parseMode: "HTML" });
         }
       }
     }
@@ -1544,9 +1551,14 @@ app.get("/test-tg", async () => {
   const users = await prisma.user.findMany();
 
   for (const user of users) {
-    await sendTelegram(
+    await sendTrackedTelegram(
       "TEST FROM RENDER",
-      user.telegramChatId
+      user.telegramChatId,
+      {
+        userId: user.id,
+        userLabel: user.name?.trim() || user.telegramChatId,
+        purpose: "test_message",
+      },
     );
   }
 

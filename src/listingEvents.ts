@@ -126,10 +126,8 @@ export function diffListingSnapshots(previous: Pick<ListingSnapshot, "price" | "
       const nextSourcePrice = next.sourcePrice;
       const previousCurrency = previous.currency ?? null;
       const nextCurrency = next.currency ?? null;
-      const sourceChanged = previousCurrency !== nextCurrency || previousSourcePrice !== nextSourcePrice;
-      const displayChanged = previous.price !== next.price;
 
-      if (!sourceChanged && !displayChanged) {
+      if (previousCurrency === nextCurrency && previousSourcePrice === nextSourcePrice) {
         continue;
       }
     }

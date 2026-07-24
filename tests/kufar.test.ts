@@ -27,7 +27,10 @@ const prismaMock = {
 const sendTelegramMock = vi.fn();
 
 vi.doMock('../src/db.js', () => ({ prisma: prismaMock }));
-vi.doMock('../src/telegram.js', () => ({ sendTelegram: sendTelegramMock }));
+vi.doMock('../src/telegram.js', () => ({
+  sendTelegram: sendTelegramMock,
+  sendTrackedTelegram: sendTelegramMock,
+}));
 
 import { metrics } from '../src/metrics.js';
 
@@ -530,7 +533,7 @@ describe('Kufar sync', () => {
     ]);
     prismaMock.listing.findMany
       .mockResolvedValueOnce([
-        { id: '1', price: 600, contentHash: 'old', description: 'Stable description', imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg', rooms: 2, isActive: true, category: '1010', title: 'Old title', url: 'https://re.kufar.by/vi/1', location: null, missingCount: 0 },
+        { id: '1', price: 600, currency: 'BYN', sourcePrice: 17362800, contentHash: 'old', description: 'Stable description', imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg', rooms: 2, isActive: true, category: '1010', title: 'Old title', url: 'https://re.kufar.by/vi/1', location: null, missingCount: 0 },
       ])
       .mockResolvedValueOnce([]);
     prismaMock.listing.update.mockResolvedValue({ id: '1' });

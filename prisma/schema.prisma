@@ -44,6 +44,7 @@ model User {
   plan           Plan? @relation(fields: [planId], references: [id])
   subscriptions Subscription[]
   billingSubscriptions UserSubscription[]
+  telegramDeliveryLogs TelegramDeliveryLog[]
 
   createdAt DateTime @default(now())
 }
@@ -90,6 +91,23 @@ model AdEvent {
 
   @@index([listingId, createdAt])
   @@index([eventType])
+}
+
+model TelegramDeliveryLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  userLabel   String?
+  chatId      String
+  purpose     String
+  success     Boolean
+  statusCode  Int?
+  error       String?
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 model Subscription {

@@ -255,6 +255,7 @@ Each listing card starts with a category-specific icon, then shows the title in 
 The current template keeps the text black and does not use colored category labels or accents.
 Price changes are compared using the listing's own Kufar currency and raw source price, so exchange-rate drift in USD does not create a `CHANGED` event.
 For `rooms`, the subscription filter supports the special `5+` value, which matches any listing with five or more rooms.
+Every Telegram delivery to a user is written to `TelegramDeliveryLog` with the user, time, delivery purpose, and result. If a send fails, the admin receives a Telegram notification with the user label, chat ID, purpose, and failure reason.
 When the sync creates a `NEW` history event, the payload stores the normalized snapshot plus the full address, the full description text, and all photo URLs for later inspection in the admin history view.
 The admin history view renders those photo URLs as a thumbnail gallery; clicking a thumbnail opens a lightbox that lets operators move through the full photo set with arrows.
 History timestamps in the admin view are shown in Minsk time (`Europe/Minsk`) so they match the rest of the admin tables.
