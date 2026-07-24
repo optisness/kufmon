@@ -177,6 +177,31 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
 }
 
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+function extractHtmlDescription(html: string) {
+  const match = html.match(/<div[^>]*itemprop=["']description["'][^>]*>([\s\S]*?)<\/div>/i);
+  if (!match?.[1]) return null;
+
+  const text = decodeHtmlEntities(match[1])
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?[^>]+>/g, "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return text.length > 0 ? text : null;
+}
+
 function pickBestDescription(values: string[]) {
   const filtered = values
     .map((value) => normalizeMultilineText(value))
@@ -204,6 +229,7 @@ export function extractListingDetails(html: string): KufarListingDetails {
       .filter((value) => value.length >= 40)
       .filter((value) => !/^https?:\/\//i.test(value))
   ]);
+  const htmlDescription = extractHtmlDescription(html);
   const imageCandidates = uniqueStrings([
     ...collectValuesByKeyPattern(json, /image|photo|gallery|media|picture/i),
     ...Array.from(
@@ -220,7 +246,7 @@ export function extractListingDetails(html: string): KufarListingDetails {
 
   return {
     address: addressCandidates[0] ?? null,
-    fullDescription: pickBestDescription(descriptionCandidates),
+    fullDescription: htmlDescription ?? pickBestDescription(descriptionCandidates),
     imageUrls,
   };
 }

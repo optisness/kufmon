@@ -63,4 +63,41 @@ describe('parseListingData', () => {
     });
   });
 
+  it('prefers the full html description block over short json text', () => {
+    const html = `
+      <html>
+        <body>
+          <div id="description">
+            <div data-name="description-block" class="styles_description__long_text__xmUGb" style="max-height:144px">
+              <h2>Описание</h2>
+              <div itemprop="description">
+                В продаже уютная  1-комнатная квартира в центральном районе города Гродно по ул. Красноармейская,79.<br>
+                Квартира расположена на 4 этаже/4 этажного кирпичного дома, 1964 года постройки.<br>
+                Общая площадь квартиры 30 кв.м., жилая  25 кв.м., кухня объединена с жилой комнатой.<br>
+                Окна ПВХ, на полу плитка, теплый пол.
+              </div>
+            </div>
+          </div>
+          <script>
+            window.__INITIAL_STATE__ = {
+              "body": "Квартира без ремонта, идеальный третий этаж, с/у раздельный.",
+              "images": [
+                { "path": "adim1/photo-1.jpg" }
+              ]
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const result = extractListingDetails(html);
+
+    expect(result.fullDescription).toContain("В продаже уютная  1-комнатная квартира");
+    expect(result.fullDescription).toContain("Квартира расположена на 4 этаже/4 этажного кирпичного дома, 1964 года постройки.");
+    expect(result.fullDescription).not.toContain("Квартира без ремонта, идеальный третий этаж, с/у раздельный.");
+    expect(result.imageUrls).toEqual([
+      'https://rms.kufar.by/v1/gallery/adim1/photo-1.jpg',
+    ]);
+  });
+
 });
