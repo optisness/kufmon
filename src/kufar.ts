@@ -230,7 +230,7 @@ async function enrichNewListingSnapshot(
 
     return {
       ...snapshot,
-      address: details.address,
+      address: details.address ?? snapshot.address ?? null,
       fullDescription: details.fullDescription ?? snapshot.description,
       imageUrls: details.imageUrls.length > 0
         ? details.imageUrls

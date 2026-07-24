@@ -7,6 +7,7 @@ describe("historyView", () => {
       "Создано: Test listing\nВсе фото: https://rms.kufar.by/v1/gallery/adim1/photo-1.jpg, https://rms.kufar.by/v1/gallery/adim1/photo-2.jpg",
     );
 
+    expect(summary).toContain("<strong>Создано:</strong>");
     expect(summary).toContain('data-history-gallery=');
     expect(summary).toContain('data-history-gallery-index="0"');
     expect(summary).toContain('data-history-gallery-index="1"');

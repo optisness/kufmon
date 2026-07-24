@@ -16,6 +16,25 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, "&#39;");
 }
 
+function emphasizeHistoryLabel(escapedLine: string) {
+  const labels = [
+    "Создано:",
+    "Адрес:",
+    "Цена:",
+    "Комнаты:",
+    "Описание:",
+    "Полное описание:",
+  ];
+
+  for (const label of labels) {
+    if (escapedLine.startsWith(label)) {
+      return escapedLine.replace(label, `<strong>${label}</strong>`);
+    }
+  }
+
+  return escapedLine;
+}
+
 function renderHistoryPhotoGallery(urls: string[]) {
   if (urls.length === 0) return "";
 
@@ -61,7 +80,7 @@ export function renderHistorySummaryHtml(summary: string) {
       continue;
     }
 
-    const escapedLine = escapeHtml(line).replace(
+    const escapedLine = emphasizeHistoryLabel(escapeHtml(line)).replace(
       /(https?:\/\/[^\s<]+)/g,
       '<a href="$1" target="_blank" rel="noreferrer noopener">$1</a>',
     );

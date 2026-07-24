@@ -211,6 +211,57 @@ describe('Kufar sync', () => {
     expect(metrics.deactivations).toBe(0);
   });
 
+  it('preserves the address from the search result when the item page does not include it', async () => {
+    prismaMock.user.findMany.mockResolvedValue([]);
+    prismaMock.subscription.findMany.mockResolvedValue([]);
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prismaMock.listing.create.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          ads: [
+            {
+              ad_id: 2,
+              subject: 'Addressed listing',
+              price_usd: '45000',
+              address: 'Grodno, Lenina 1',
+              ad_parameters: [
+                { p: 'rooms', v: '1' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
+              body_short: 'Short text',
+              images: [{ path: 'adim1/example.jpg' }],
+            },
+          ],
+        }),
+      },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "body": "Full description for Addressed listing",
+              "images": [
+                { "path": "adim1/example.jpg" }
+              ]
+            };
+          </script>
+        `,
+      },
+    ]);
+
+    await saveKufarAds();
+
+    const createdEvent = prismaMock.adEvent.create.mock.calls[0]?.[0]?.data;
+
+    expect(createdEvent?.changesJson?.snapshot?.address).toBe('Grodno, Lenina 1');
+  });
+
   it('follows Kufar cursor pagination and collects ads from the next page', async () => {
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'user-1', telegramChatId: '123' },
