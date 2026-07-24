@@ -147,9 +147,10 @@ function renderSortableHeader(
   key: string,
   type: "string" | "number" | "boolean",
   currentSort: { key: string; direction: "asc" | "desc" } | null,
+  className = "",
 ) {
   const sortDir = currentSort?.key === key ? currentSort.direction : undefined;
-  return `<th class="sortable" data-sortable="true" data-sort-type="${type}" data-sort-key="${escapeHtml(key)}"${sortDir ? ` data-sort-dir="${sortDir}"` : ""}>${escapeHtml(label)}</th>`;
+  return `<th class="sortable${className ? ` ${className}` : ""}" data-sortable="true" data-sort-type="${type}" data-sort-key="${escapeHtml(key)}"${sortDir ? ` data-sort-dir="${sortDir}"` : ""}>${escapeHtml(label)}</th>`;
 }
 
 function parseRoomsSelection(value: any) {
@@ -382,6 +383,7 @@ function renderAdminLayout(options: {
     .listing-row.inactive td { background:#ffe9e9; }
     .listing-row.inactive:hover td { background:#ffdede; }
     .attempt-column { width:64px; text-align:center; }
+    .center-column, th.center-column { text-align:center; }
     .event-column { white-space:nowrap; }
     .id-column { font-family: monospace; font-size:11px; color:#8a8a8a; white-space:nowrap; }
     .compact-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:12px; line-height:1.2; background:#f3f4f6; color:#222; }
@@ -936,14 +938,13 @@ function renderListingsPage(options: {
           <tr>
             <th>№</th>
             ${renderSortableHeader("Название", "title", "string", options.currentSort)}
-            ${renderSortableHeader("Category", "category", "string", options.currentSort)}
-            ${renderSortableHeader("Seller", "seller", "string", options.currentSort)}
+            ${renderSortableHeader("Кат", "category", "string", options.currentSort)}
+            ${renderSortableHeader("Продав", "seller", "string", options.currentSort)}
             ${renderSortableHeader("Цена", "price", "number", options.currentSort)}
-            ${renderSortableHeader("Комнаты", "rooms", "number", options.currentSort)}
-            <th class="sortable attempt-column" data-sortable="true" data-sort-type="number" data-sort-key="missingCount"${options.currentSort?.key === "missingCount" ? ` data-sort-dir="${options.currentSort.direction}"` : ""}>Попыт</th>
-            <th class="sortable event-column" data-sortable="true" data-sort-type="string" data-sort-key="lastEventAt"${options.currentSort?.key === "lastEventAt" ? ` data-sort-dir="${options.currentSort.direction}"` : ""}>Изменен</th>
-            <th title="Ссылка">🔗</th>
-            ${renderSortableHeader("Активно", "active", "boolean", options.currentSort)}
+            ${renderSortableHeader("Room", "rooms", "number", options.currentSort, "center-column")}
+            <th class="sortable attempt-column" data-sortable="true" data-sort-type="number" data-sort-key="missingCount"${options.currentSort?.key === "missingCount" ? ` data-sort-dir="${options.currentSort.direction}"` : ""}>Err</th>
+            ${renderSortableHeader("Изм", "lastEventAt", "string", options.currentSort, "center-column")}
+            ${renderSortableHeader("Стат", "active", "boolean", options.currentSort, "center-column")}
             <th>ID</th>
           </tr>
         </thead>
@@ -951,21 +952,21 @@ function renderListingsPage(options: {
           ${options.listings.map((l, index) => `
             <tr class="${l.isActive ? "" : "listing-row inactive"}">
               <td>${getDisplayRowNumber(options.pagination, index)}</td>
-              <td><a href="/history/${l.id}" style="color:#007bff; text-decoration:none; font-weight:600;">${escapeHtml(l.title)}</a></td>
+              <td>
+                <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                  <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" title="Открыть объявление" style="display:inline-flex; align-items:center; flex:0 0 auto;">
+                    <img src="https://pbs.twimg.com/profile_images/829644122202001408/wkcfnIa9.jpg" alt="Kufar" width="18" height="18" style="display:block; object-fit:cover; object-position:center; border-radius:4px;" />
+                  </a>
+                  <a href="/history/${l.id}" style="color:#007bff; text-decoration:none; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(l.title)}</a>
+                </div>
+              </td>
               <td><span class="compact-badge category">${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</span></td>
               <td><span class="compact-badge ${escapeHtml(l.sellerType === "company" ? "company" : l.sellerType === "private" ? "private" : "unknown")}">${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</span></td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
-              <td>${l.rooms ?? "-"}</td>
+              <td class="center-column">${l.rooms ?? "-"}</td>
               <td class="attempt-column">${escapeHtml(formatListingAttemptCount(l.missingCount))}</td>
               <td class="event-column">${renderLastEventCell(options.latestEventByListingId.get(l.id))}</td>
-              <td>
-                <div class="link-icons">
-                  <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" title="Открыть объявление">
-                    <img src="https://pbs.twimg.com/profile_images/829644122202001408/wkcfnIa9.jpg" alt="Kufar" width="18" height="18" style="display:block; object-fit:cover; object-position:center; border-radius:4px;" />
-                  </a>
-                </div>
-              </td>
-              <td data-sort-value="${l.isActive ? 1 : 0}">
+              <td class="center-column" data-sort-value="${l.isActive ? 1 : 0}">
                 <span style="color:${l.isActive ? "#28a745" : "#dc3545"}; font-weight:bold;" title="${l.isActive ? "Активно" : "Неактивно"}">${l.isActive ? "＋" : "×"}</span>
               </td>
               <td class="id-column">${l.id}</td>
@@ -1464,7 +1465,10 @@ app.get("/history/:id", async (req: any, reply) => {
 
   let html = "<html><head><meta charset='UTF-8' /></head>";
   html += "<body style='font-family: Arial; padding: 20px'>";
-  html += "<h2>История изменений</h2>";
+  html += "<div style='display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;'>";
+  html += "<h2 style='margin:0;'>История изменений</h2>";
+  html += "<a href='/ui/listings' style='display:inline-flex; align-items:center; padding:8px 12px; background:#007bff; color:#fff; text-decoration:none; border-radius:6px; font-size:14px;'>Все объявления</a>";
+  html += "</div>";
   
   if (history.length === 0) {
     html += "<div>Нет событий</div>";
