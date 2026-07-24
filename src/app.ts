@@ -1298,7 +1298,11 @@ app.get("/ui/listings", async (req: any, reply) => {
   const listingWhere = buildListingsWhere(filters, cutoff);
   const totalItems = await prisma.listing.count({ where: listingWhere });
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
-  const sortState = parseAdminSortState(req.query ?? {}, ["title", "category", "seller", "price", "rooms", "missingCount", "lastEventAt", "active"]);
+  const sortState = parseAdminSortState(
+    req.query ?? {},
+    ["title", "category", "seller", "price", "rooms", "missingCount", "lastEventAt", "active"],
+    { key: "lastEventAt", direction: "desc" },
+  );
   const shouldSortByLastEvent = sortState?.key === "lastEventAt";
   const allListings = shouldSortByLastEvent
     ? await prisma.listing.findMany({
@@ -1545,9 +1549,9 @@ app.get("/history/:id", async (req: any, reply) => {
 
   let html = "<html><head><meta charset='UTF-8' /></head>";
   html += "<body style='font-family: Arial; padding: 20px'>";
-  html += "<div style='display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;'>";
-  html += "<h2 style='margin:0;'>История изменений</h2>";
+  html += "<div style='display:flex; justify-content:flex-start; align-items:center; gap:12px; flex-wrap:wrap;'>";
   html += "<a href='/ui/listings' style='display:inline-flex; align-items:center; padding:8px 12px; background:#007bff; color:#fff; text-decoration:none; border-radius:6px; font-size:14px;'>Все объявления</a>";
+  html += "<h2 style='margin:0;'>История изменений</h2>";
   html += "</div>";
   
   if (history.length === 0) {
