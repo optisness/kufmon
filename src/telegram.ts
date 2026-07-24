@@ -10,6 +10,7 @@ type TelegramSendOptions = {
 type TelegramDeliveryContext = {
   userId?: string | null;
   userLabel?: string | null;
+  subscriptionName?: string | null;
   purpose?: string;
   notifyAdminOnFailure?: boolean;
 };
@@ -64,6 +65,7 @@ async function sendTelegramRaw(
 async function recordTelegramDelivery(params: {
   userId?: string | null;
   userLabel?: string | null;
+  subscriptionName?: string | null;
   chatId: string;
   purpose: string;
   result: Awaited<ReturnType<typeof sendTelegramRaw>>;
@@ -73,6 +75,7 @@ async function recordTelegramDelivery(params: {
       data: {
         userId: params.userId ?? null,
         userLabel: params.userLabel ?? null,
+        subscriptionName: params.subscriptionName ?? null,
         chatId: params.chatId,
         purpose: params.purpose,
         success: params.result.ok,
@@ -130,6 +133,7 @@ export async function sendTrackedTelegram(
   await recordTelegramDelivery({
     userId: context.userId,
     userLabel: context.userLabel,
+    subscriptionName: context.subscriptionName,
     chatId,
     purpose: context.purpose ?? "user_notification",
     result,

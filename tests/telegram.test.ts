@@ -39,6 +39,7 @@ describe("telegram delivery tracking", () => {
       {
         userId: "user-1",
         userLabel: "Anna",
+        subscriptionName: "Minsk 2 rooms",
         purpose: "test_message",
       },
     );
@@ -50,6 +51,7 @@ describe("telegram delivery tracking", () => {
         data: expect.objectContaining({
           userId: "user-1",
           userLabel: "Anna",
+          subscriptionName: "Minsk 2 rooms",
           chatId: "123",
           purpose: "test_message",
           success: true,
@@ -83,6 +85,7 @@ describe("telegram delivery tracking", () => {
       {
         userId: "user-1",
         userLabel: "Anna",
+        subscriptionName: "Minsk 2 rooms",
         purpose: "subscription_backfill",
       },
     );
@@ -94,6 +97,7 @@ describe("telegram delivery tracking", () => {
         data: expect.objectContaining({
           userId: "user-1",
           userLabel: "Anna",
+          subscriptionName: "Minsk 2 rooms",
           chatId: "123",
           purpose: "subscription_backfill",
           success: false,

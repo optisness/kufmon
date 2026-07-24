@@ -178,6 +178,21 @@ async function resolveSyncCategories(options?: Parameters<typeof fetchKufarMap>[
   return Array.from(categories);
 }
 
+async function fetchCurrentKufarSnapshots(options?: Parameters<typeof fetchKufarMap>[0]) {
+  const categories = options?.category ? [options.category] : Object.values(KUFAR_CATEGORIES);
+  const snapshotsById = new Map<string, ReturnType<typeof normalizeKufarListing>>();
+
+  for (const category of categories) {
+    const adsForCategory = await fetchKufarAdsPages(options, category);
+
+    for (const ad of adsForCategory) {
+      snapshotsById.set(ad.id, ad.snapshot);
+    }
+  }
+
+  return snapshotsById;
+}
+
 function extractNextCursor(data: any) {
   const pages = Array.isArray(data?.pagination?.pages) ? data.pagination.pages : [];
   const nextPage = pages.find((page: any) => page?.label === "next" && page?.token);
@@ -664,6 +679,17 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
 
     if (flattened.length === 0) continue;
 
+    const subscriptionName = Array.from(
+      new Set(
+        flattened.flatMap((item) =>
+          (item.subscriptionName ?? "")
+            .split(",")
+            .map((name) => name.trim())
+            .filter(Boolean),
+        ),
+      ),
+    ).join(", ");
+
     const text = formatTelegramBatchMessage(flattened);
     const chunks = splitTelegramMessageChunks(text);
 
@@ -671,6 +697,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
       const ok = await sendTrackedTelegram(chunk, user.telegramChatId, {
         userId: user.id,
         userLabel: user.name?.trim() || user.telegramChatId,
+        subscriptionName: subscriptionName || null,
         purpose: "kufar_notification",
       }, { parseMode: "HTML" });
       if (ok) notificationsSent += 1;
@@ -680,4 +707,55 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
   incMetric("alertsSent", notificationsSent);
 
   return currentIds.size;
+}
+
+export async function backfillKufarSourcePrices(options?: Parameters<typeof fetchKufarMap>[0]) {
+  const existingListings = await prisma.listing.findMany({
+    where: {
+      source: { in: [KUFAR_SOURCE, "kufar"] },
+    },
+    select: {
+      id: true,
+      currency: true,
+      sourcePrice: true,
+    },
+  });
+
+  if (existingListings.length === 0) {
+    return { scanned: 0, matched: 0, updated: 0 };
+  }
+
+  const currentSnapshotsById = await fetchCurrentKufarSnapshots(options);
+
+  let matched = 0;
+  let updated = 0;
+
+  for (const listing of existingListings) {
+    const snapshot = currentSnapshotsById.get(listing.id);
+    if (!snapshot) continue;
+
+    matched += 1;
+
+    const nextCurrency = snapshot.currency ?? listing.currency ?? "USD";
+    const nextSourcePrice = snapshot.sourcePrice ?? null;
+
+    if (listing.currency === nextCurrency && listing.sourcePrice === nextSourcePrice) {
+      continue;
+    }
+
+    await prisma.listing.update({
+      where: { id: listing.id },
+      data: {
+        currency: nextCurrency,
+        sourcePrice: nextSourcePrice,
+      },
+    });
+    updated += 1;
+  }
+
+  return {
+    scanned: existingListings.length,
+    matched,
+    updated,
+  };
 }

@@ -97,6 +97,7 @@ model TelegramDeliveryLog {
   id          String   @id @default(cuid())
   userId      String?
   userLabel   String?
+  subscriptionName String?
   chatId      String
   purpose     String
   success     Boolean

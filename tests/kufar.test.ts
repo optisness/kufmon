@@ -36,12 +36,14 @@ import { metrics } from '../src/metrics.js';
 
 let fetchKufarMap: any;
 let saveKufarAds: any;
+let backfillKufarSourcePrices: any;
 let buildKufarSearchUrl: any;
 
 beforeAll(async () => {
   const module = await import('../src/kufar.js');
   fetchKufarMap = module.fetchKufarMap;
   saveKufarAds = module.saveKufarAds;
+  backfillKufarSourcePrices = module.backfillKufarSourcePrices;
   buildKufarSearchUrl = module.buildKufarSearchUrl;
 });
 
@@ -112,6 +114,55 @@ describe('Kufar sync', () => {
     const url = buildKufarSearchUrl();
 
     expect(url).toContain('size=100');
+  });
+
+  it('backfills currency and source price for existing Kufar listings', async () => {
+    prismaMock.listing.findMany.mockResolvedValue([
+      { id: '1', currency: 'USD', sourcePrice: null },
+    ]);
+    prismaMock.listing.update.mockResolvedValue({ id: '1' });
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          ads: [
+            {
+              ad_id: 1,
+              subject: 'Backfill listing',
+              currency: 'BYN',
+              price_usd: '25000',
+              price_byn: '7500000',
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+              ],
+              images: [{ path: 'adim1/backfill.jpg' }],
+            },
+          ],
+          pagination: {
+            pages: [
+              { label: 'self', num: 1, token: null },
+            ],
+          },
+          total: 1,
+        }),
+      },
+    ]);
+
+    const result = await backfillKufarSourcePrices({ category: '1010' });
+
+    expect(result).toEqual({
+      scanned: 1,
+      matched: 1,
+      updated: 1,
+    });
+    expect(prismaMock.listing.update).toHaveBeenCalledWith({
+      where: { id: '1' },
+      data: {
+        currency: 'BYN',
+        sourcePrice: 7500000,
+      },
+    });
   });
 
   it('alerts the admin when the Kufar response shape changes', async () => {

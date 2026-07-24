@@ -9,6 +9,7 @@ import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
 import { renderHistoryPageHtml } from "./historyView.js";
 import { formatListingAttemptCount, formatListingEventAt } from "./listingTable.js";
+import { backfillKufarSourcePrices } from "./kufar.js";
 import {
   ADMIN_LOGIN_LOCK_MS,
   ADMIN_SESSION_COOKIE,
@@ -613,6 +614,8 @@ function renderLandingPage(options: {
 
 function renderHealthPage(options: {
   status: Awaited<ReturnType<typeof getServiceStatus>>;
+  authenticated?: boolean;
+  backfillResult?: { updated: number; scanned: number; matched: number } | null;
 }) {
   const statusLabel = options.status.db ? "OK" : "Error";
   const telegramLabel = options.status.telegram ? "Configured" : "Not configured";
@@ -625,6 +628,16 @@ function renderHealthPage(options: {
     <div class="section">
       <h2>Состояние сервиса</h2>
       <p>Публичная проверка для Render и удобная ручная диагностика.</p>
+      ${options.authenticated ? `
+      <div class="page-card" style="margin-top:16px;">
+        <h3>Разовый backfill валюты Kufar</h3>
+        <p>Обновляет currency/sourcePrice у существующих объявлений по текущим данным Kufar. После запуска этот блок можно удалить.</p>
+        ${options.backfillResult ? `<p><strong>Готово:</strong> обновлено ${options.backfillResult.updated} из ${options.backfillResult.scanned} найденных, совпадений ${options.backfillResult.matched}.</p>` : ""}
+        <form method="POST" action="/ui/backfill-source-price" onsubmit="return confirm('Запустить разовый backfill валюты Kufar?')">
+          <button type="submit" class="btn-success">Запустить backfill</button>
+        </form>
+      </div>
+      ` : ""}
       <div class="page-grid" style="margin-top:16px;">
         <div class="page-card">
           <h3>Сервис</h3>
@@ -713,6 +726,7 @@ function renderTelegramDeliveriesPage(options: {
             <th>№</th>
             <th>Время</th>
             <th>Пользователь</th>
+            <th>Подписка</th>
             <th>Chat ID</th>
             <th>Purpose</th>
             <th>Result</th>
@@ -726,6 +740,7 @@ function renderTelegramDeliveriesPage(options: {
               <td>${getDisplayRowNumber(options.pagination, index)}</td>
               <td>${escapeHtml(formatListingEventAt(delivery.createdAt))}</td>
               <td>${escapeHtml(delivery.userLabel || delivery.user?.name || delivery.user?.telegramChatId || "-")}</td>
+              <td>${escapeHtml(delivery.subscriptionName || "-")}</td>
               <td>${escapeHtml(delivery.chatId)}</td>
               <td>${escapeHtml(delivery.purpose)}</td>
               <td data-sort-value="${delivery.success ? 1 : 0}" style="font-weight:700; color:${delivery.success ? "#28a745" : "#dc3545"};">${delivery.success ? "OK" : "FAIL"}</td>
@@ -1197,7 +1212,17 @@ app.get("/health", async (req: any, reply) => {
     };
   }
 
-  reply.type("text/html; charset=utf-8").send(renderHealthPage({ status }));
+  reply.type("text/html; charset=utf-8").send(renderHealthPage({
+    status,
+    authenticated: isAdminAuthenticated(req.headers.cookie),
+    backfillResult: typeof req.query?.backfill === "string" && req.query.backfill === "done"
+      ? {
+          updated: parsePositiveInt(req.query.updated, 0),
+          scanned: parsePositiveInt(req.query.scanned, 0),
+          matched: parsePositiveInt(req.query.matched, 0),
+        }
+      : null,
+  }));
 });
 
 app.get("/apply", async (_req, reply) => {
@@ -1494,6 +1519,11 @@ app.get("/ui/telegram-deliveries", async (req: any, reply) => {
     query: req.query ?? {},
     filters,
   }));
+});
+
+app.post("/ui/backfill-source-price", async (_req: any, reply) => {
+  const result = await backfillKufarSourcePrices();
+  reply.redirect(`/health?backfill=done&updated=${result.updated}&scanned=${result.scanned}&matched=${result.matched}`);
 });
 
 app.post("/users", async (req: any, reply) => {
