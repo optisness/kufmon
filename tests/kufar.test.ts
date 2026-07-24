@@ -514,7 +514,7 @@ describe('Kufar sync', () => {
     expect(metrics.alertsSent).toBe(0);
   });
 
-  it('ignores price-only changes below 50 USD when building change events', async () => {
+  it('ignores price-only changes below 100 USD when building change events', async () => {
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'user-1', telegramChatId: '123' },
     ]);

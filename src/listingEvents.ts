@@ -23,7 +23,7 @@ export type ListingChange = {
   new: string | number | null;
 };
 
-const MIN_PRICE_CHANGE_USD = 50;
+const MIN_PRICE_CHANGE_USD = 100;
 
 function normalizeText(value: any) {
   if (value == null) return null;
