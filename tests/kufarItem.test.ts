@@ -42,10 +42,11 @@ describe('parseListingData', () => {
       <script>
         window.__INITIAL_STATE__ = {
           "address": "Grodno, Lenina 1",
-          "body": "Full description text with many useful details about the listing.",
+          "body": "Full description text with many useful details about the listing.\\nSecond line with more details.\\nThird line that should stay.",
           "images": [
             { "path": "adim1/photo-1.jpg" },
-            { "url": "https://rms.kufar.by/v1/gallery/adim1/photo-2.jpg" }
+            { "url": "https://rms.kufar.by/v1/gallery/adim1/photo-2.jpg" },
+            { "path": "/adim1/photo-3.jpg" }
           ]
         };
       </script>
@@ -53,10 +54,11 @@ describe('parseListingData', () => {
 
     expect(extractListingDetails(html)).toEqual({
       address: 'Grodno, Lenina 1',
-      fullDescription: 'Full description text with many useful details about the listing.',
+      fullDescription: 'Full description text with many useful details about the listing.\nSecond line with more details.\nThird line that should stay.',
       imageUrls: [
         'https://rms.kufar.by/v1/gallery/adim1/photo-1.jpg',
         'https://rms.kufar.by/v1/gallery/adim1/photo-2.jpg',
+        'https://rms.kufar.by/v1/gallery/adim1/photo-3.jpg',
       ],
     });
   });

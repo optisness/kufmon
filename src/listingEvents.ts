@@ -158,9 +158,13 @@ export function formatEventSummary(eventType: string, changesJson: any) {
     if (snapshot.address) parts.push(`Адрес: ${snapshot.address}`);
     if (snapshot.fullDescription) parts.push(`Полное описание: ${snapshot.fullDescription}`);
     if (snapshot.description) parts.push(`Описание: ${snapshot.description}`);
-    if (snapshot.imageUrl) parts.push(`Фото: ${snapshot.imageUrl}`);
-    if (Array.isArray(snapshot.imageUrls) && snapshot.imageUrls.length > 0) {
-      parts.push(`Все фото: ${snapshot.imageUrls.join(", ")}`);
+    const allPhotos = Array.isArray(snapshot.imageUrls) && snapshot.imageUrls.length > 0
+      ? snapshot.imageUrls
+      : snapshot.imageUrl
+        ? [snapshot.imageUrl]
+        : [];
+    if (allPhotos.length > 0) {
+      parts.push(`Все фото: ${allPhotos.join(", ")}`);
     }
     return parts.join("\n");
   }

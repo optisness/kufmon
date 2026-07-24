@@ -29,5 +29,6 @@ describe("listingEvents", () => {
     expect(summary).toContain("Адрес: Grodno, Lenina 1");
     expect(summary).toContain("Полное описание: Full description with all details");
     expect(summary).toContain("Все фото: https://rms.kufar.by/v1/gallery/adim1/photo-1.jpg, https://rms.kufar.by/v1/gallery/adim1/photo-2.jpg");
+    expect(summary).not.toContain("Фото:");
   });
 });

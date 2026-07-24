@@ -85,6 +85,15 @@ function normalizeText(value: any) {
   return text.length > 0 ? text : null;
 }
 
+function normalizeMultilineText(value: any) {
+  if (value == null) return null;
+  const text = String(value)
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+  return text.length > 0 ? text : null;
+}
+
 function normalizeImageUrl(value: string) {
   const text = normalizeText(value);
   if (!text) return null;
@@ -121,7 +130,7 @@ function collectStringsFromSubtree(node: any) {
   function walk(value: any) {
     if (value == null) return;
     if (typeof value === "string") {
-      const text = normalizeText(value);
+      const text = normalizeMultilineText(value);
       if (text) values.push(text);
       return;
     }
@@ -154,14 +163,26 @@ function collectValuesByKeyPattern(root: any, pattern: RegExp) {
   return values;
 }
 
+function collectAllStrings(root: any) {
+  const values: string[] = [];
+
+  walkJson(root, (_key, value) => {
+    values.push(...collectStringsFromSubtree(value));
+  });
+
+  return values;
+}
+
 function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
 }
 
 function pickBestDescription(values: string[]) {
   const filtered = values
-    .map((value) => value.replace(/\s+/g, " ").trim())
-    .filter((value) => value.length > 0);
+    .map((value) => normalizeMultilineText(value))
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => value.length > 0)
+    .filter((value) => !/^https?:\/\//i.test(value));
 
   if (filtered.length === 0) {
     return null;
@@ -179,9 +200,16 @@ export function extractListingDetails(html: string): KufarListingDetails {
   ]);
   const descriptionCandidates = uniqueStrings([
     ...collectValuesByKeyPattern(json, /body|description|text|content|details|about|summary/i),
+    ...collectAllStrings(json)
+      .filter((value) => value.length >= 40)
+      .filter((value) => !/^https?:\/\//i.test(value))
   ]);
   const imageCandidates = uniqueStrings([
     ...collectValuesByKeyPattern(json, /image|photo|gallery|media|picture/i),
+    ...Array.from(
+      html.matchAll(/https?:\/\/rms\.kufar\.by\/v1\/gallery\/[^\s"'<>)+\]]+/gi),
+      (match) => match[0],
+    ),
   ]);
 
   const imageUrls = uniqueStrings(

@@ -7,3 +7,8 @@ dist
 *.zip
 
 *.log
+
+# Local-only drafts and assets
+docs/14_render_watchdog_apps_script.md
+logo.jpg
+scripts/
