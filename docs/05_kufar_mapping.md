@@ -54,7 +54,7 @@ The mapper produces the following normalized model.
 
 | Field | Type | Source |
 |--------|------|--------|
-| source | string | constant (`kufar`) |
+| source | string | constant (`kufar.by`) |
 | source_ad_id | bigint | ad_id |
 | category | string | category |
 | subject | string | subject |
@@ -192,6 +192,8 @@ image_url = NULL
 For `NEW` history events, the sync layer now stores the full address, the full untruncated description, and all image links alongside the usual normalized snapshot. Those extra fields are kept only in the event payload and do not change the normalized listing schema.
 
 Future versions may store all images separately in the listing table as well.
+
+Implementation note: the normalized Kufar source value is stored as `kufar.by` in the database, even if legacy records still contain `kufar`.
 
 ---
 
@@ -534,7 +536,7 @@ Output:
 
 ```json
 {
-    "source": "kufar",
+    "source": "kufar.by",
     "source_ad_id": 1077901280,
     "subject": "1комн квартира",
     "price_usd": 60000.00,

@@ -1,17 +1,29 @@
 type SubscriptionLike = {
+  source?: string | null;
   category?: string | null;
   sellerTypeFilter?: string | null;
+  notificationMode?: string | null;
   maxPrice?: number | null;
   rooms?: unknown;
   filters?: unknown;
 };
 
 type ListingLike = {
+  source?: string | null;
   price?: number | null;
   rooms?: number | null;
   category?: string | null;
   sellerType?: string | null;
 };
+
+export function normalizeSource(value: unknown) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text || text === "kufar" || text === "kufar.by") {
+    return "kufar.by";
+  }
+
+  return text;
+}
 
 function parseMaybeJson(value: unknown) {
   if (!value) return null;
@@ -91,6 +103,10 @@ export function formatRoomsList(rooms: unknown) {
 }
 
 export function matchesSubscriptionListing(subscription: SubscriptionLike, listing: ListingLike) {
+  if (normalizeSource(subscription.source) !== normalizeSource(listing.source)) {
+    return false;
+  }
+
   if (subscription.category && listing.category && subscription.category !== listing.category) {
     return false;
   }

@@ -190,7 +190,12 @@ describe('Kufar sync', () => {
     expect(prismaMock.listing.create).toHaveBeenCalledTimes(1);
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
     expect(prismaMock.subscription.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { enabled: true } }),
+      expect.objectContaining({
+        where: expect.objectContaining({
+          enabled: true,
+          source: { in: ['kufar.by', 'kufar'] },
+        }),
+      }),
     );
     expect(sendTelegramMock).toHaveBeenCalledTimes(1);
     expect(message).toContain('Подписка: Minsk 2 rooms');
@@ -386,6 +391,76 @@ describe('Kufar sync', () => {
     expect(metrics.changedListings).toBe(1);
     expect(metrics.priceChanges).toBe(1);
     expect(metrics.alertsSent).toBe(1);
+  });
+
+  it('suppresses changed alerts when a subscription is set to new-only notifications', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'user-1', telegramChatId: '123' },
+    ]);
+    prismaMock.subscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-1',
+        name: 'Minsk 2 rooms',
+        userId: 'user-1',
+        maxPrice: 500,
+        rooms: [2],
+        enabled: true,
+        notificationMode: 'new_only',
+      },
+    ]);
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([
+        { id: '1', price: 600, contentHash: 'old', description: 'Stable description', imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg', rooms: 2, isActive: true, category: '1010', title: 'Old title', url: 'https://re.kufar.by/vi/1', location: null, missingCount: 0 },
+      ])
+      .mockResolvedValueOnce([]);
+    prismaMock.listing.update.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
+    sendTelegramMock.mockResolvedValue(true);
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          ads: [
+            {
+              ad_id: 1,
+              subject: 'Test listing',
+              price_usd: '50000',
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
+              body_short: 'Updated description',
+              images: [{ path: 'adim1/updated.jpg' }],
+            },
+          ],
+        }),
+      },
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "address": "Grodno, Updated 1",
+              "body": "Full description for updated listing",
+              "images": [
+                { "path": "adim1/updated.jpg" }
+              ]
+            };
+          </script>
+        `,
+      },
+    ]);
+
+    const result = await saveKufarAds();
+
+    expect(result).toBe(1);
+    expect(prismaMock.listing.update).toHaveBeenCalledTimes(1);
+    expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
+    expect(sendTelegramMock).not.toHaveBeenCalled();
+    expect(metrics.changedListings).toBe(1);
+    expect(metrics.priceChanges).toBe(1);
+    expect(metrics.alertsSent).toBe(0);
   });
 
   it('ignores price-only changes below 50 USD when building change events', async () => {

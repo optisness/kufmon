@@ -19,7 +19,7 @@ model Listing {
   rooms    Int?
   category String?
   sellerType String?
-  source   String  @default("kufar")
+  source   String  @default("kufar.by")
   isActive Boolean @default(true)
   contentHash String?
   missingCount Int @default(0)
@@ -29,6 +29,8 @@ model Listing {
   createdAt   DateTime @default(now())
 
   events       AdEvent[]
+
+  @@index([source])
 }
 
 model User {
@@ -93,8 +95,10 @@ model Subscription {
   id              String   @id @default(cuid())
   name            String
   userId          String?
+  source          String   @default("kufar.by")
   category        String?
   sellerTypeFilter String   @default("all")
+  notificationMode String   @default("new_and_changed")
   maxPrice        Int?
   rooms           Json?
   filters         Json?
@@ -103,4 +107,6 @@ model Subscription {
   createdAt       DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id])
+
+  @@index([source])
 }

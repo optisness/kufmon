@@ -2,7 +2,7 @@ import { prisma } from "./db.js";
 import { sendTelegram } from "./telegram.js";
 import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
-import { matchesSubscriptionListing } from "./subscriptions.js";
+import { matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
 import { formatTelegramBatchMessage, type TelegramEventType } from "./telegramMessage.js";
 import { extractListingDetails, fetchKufarItem } from "./kufarItem.js";
 import {
@@ -20,6 +20,7 @@ let lastKufarFormatAlertSignature = "";
 let lastKufarFormatAlertAt = 0;
 
 const KUFAR_DEFAULT_GTSY = "country-belarus~province-grodnenskaja_oblast~locality-grodno";
+const KUFAR_SOURCE = "kufar.by";
 
 export const KUFAR_CATEGORIES = {
   apartments: "1010",
@@ -158,6 +159,7 @@ async function resolveSyncCategories(options?: Parameters<typeof fetchKufarMap>[
   const subscriptionCategories = await prisma.subscription.findMany({
     where: {
       enabled: true,
+      source: { in: [KUFAR_SOURCE, "kufar"] },
       category: { not: null },
     },
     select: { category: true },
@@ -250,7 +252,7 @@ async function enrichNewListingSnapshot(
 function matchesUserSubscriptions(
   subscriptionsByUser: Record<string, any[]>,
   userId: string,
-  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null },
+  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null; source?: string | null },
 ) {
   const userSubs = subscriptionsByUser[userId] || [];
   return userSubs.some((subscription) =>
@@ -259,6 +261,7 @@ function matchesUserSubscriptions(
       rooms: ad.rooms,
       category: ad.category,
       sellerType: ad.sellerType,
+      source: ad.source,
     }),
   );
 }
@@ -266,16 +269,29 @@ function matchesUserSubscriptions(
 function getMatchingSubscriptionNames(
   subscriptionsByUser: Record<string, any[]>,
   userId: string,
-  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null },
+  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null; source?: string | null },
+  eventType: TelegramEventType,
 ) {
   const userSubs = subscriptionsByUser[userId] || [];
   return userSubs
+    .filter((subscription) => {
+      if (normalizeSource(subscription.source) !== KUFAR_SOURCE) {
+        return false;
+      }
+
+      if (eventType === "CHANGED" && String(subscription.notificationMode ?? "new_and_changed") === "new_only") {
+        return false;
+      }
+
+      return true;
+    })
     .filter((subscription) =>
       matchesSubscriptionListing(subscription, {
         price: ad.price,
         rooms: ad.rooms,
         category: ad.category,
         sellerType: ad.sellerType,
+        source: ad.source,
       }),
     )
     .map((subscription) => String(subscription.name ?? "").trim())
@@ -295,6 +311,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
   const subscriptions = await prisma.subscription.findMany({
     where: {
       enabled: true,
+      source: { in: [KUFAR_SOURCE, "kufar"] },
     },
   });
 
@@ -359,6 +376,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
   const activeListings = await prisma.listing.findMany({
     where: {
       isActive: true,
+      source: { in: [KUFAR_SOURCE, "kufar"] },
       OR: [
         { category: { in: categoriesToSync } },
         { category: null },
@@ -380,7 +398,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
       currency: "USD",
       url: ad.snapshot.url,
       location: ad.snapshot.location ?? existing?.location ?? null,
-      source: "kufar",
+      source: KUFAR_SOURCE,
       contentHash: nextHash,
       missingCount: 0,
       lastSeenAt: syncTime,
@@ -415,7 +433,8 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
           rooms: ad.snapshot.rooms,
           category: ad.snapshot.category,
           sellerType,
-        });
+          source: KUFAR_SOURCE,
+        }, "NEW");
 
         if (subscriptionNames.length > 0) {
           userAlerts[user.id].NEW.push({
@@ -459,7 +478,8 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
           rooms: ad.snapshot.rooms,
           category: ad.snapshot.category,
           sellerType: ad.snapshot.sellerType,
-        });
+          source: KUFAR_SOURCE,
+        }, "NEW");
 
         if (subscriptionNames.length > 0) {
           userAlerts[user.id].NEW.push({
@@ -524,7 +544,8 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
           rooms: ad.snapshot.rooms,
           category: ad.snapshot.category,
           sellerType: ad.snapshot.sellerType,
-        });
+          source: KUFAR_SOURCE,
+        }, "CHANGED");
 
         if (subscriptionNames.length > 0) {
           userAlerts[user.id].CHANGED.push({
@@ -590,7 +611,8 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
           rooms: listing.rooms ?? null,
           category: listing.category ?? null,
           sellerType,
-        });
+          source: listing.source ?? KUFAR_SOURCE,
+        }, "REMOVED");
 
         if (subscriptionNames.length > 0) {
           userAlerts[user.id].REMOVED.push({
@@ -617,6 +639,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
   await prisma.listing.deleteMany({
     where: {
       isActive: false,
+      source: { in: [KUFAR_SOURCE, "kufar"] },
       lastSeenAt: { lt: staleCutoff },
     },
   });

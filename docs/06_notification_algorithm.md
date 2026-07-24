@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Draft  
-**Last updated:** 2026-07-23
+**Last updated:** 2026-07-24
 
 ---
 
@@ -436,3 +436,9 @@ Possible additions:
 - AI-generated summaries;
 - weekly digests;
 - personalized recommendations.
+
+# Implementation Notes Update
+
+- Subscription matching now respects the listing `source`, so future non-Kufar feeds can be kept separate.
+- Subscriptions can opt into `new_only` mode; in that mode CHANGED events are not delivered to Telegram.
+- The NEW history payload stores the full address, the full description text, and all photo URLs for admin inspection.

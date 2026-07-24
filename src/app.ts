@@ -6,7 +6,7 @@ import { startCron } from "./cron.js";
 import { sendTelegram } from "./telegram.js";
 import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
-import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing } from "./subscriptions.js";
+import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
 import { formatEventSummary } from "./listingEvents.js";
 import { formatListingAttemptCount, formatListingEventAt } from "./listingTable.js";
 import {
@@ -94,6 +94,19 @@ const CATEGORY_LABEL_BY_VALUE: Record<string, string> = {
   [KUFAR_CATEGORIES.land]: "Участок",
 };
 
+const SOURCE_LABEL_BY_VALUE: Record<string, string> = {
+  "kufar.by": "kufar.by",
+};
+
+const SOURCE_OPTIONS = [
+  { value: "kufar.by", label: "kufar.by" },
+];
+
+const NOTIFICATION_MODE_OPTIONS = [
+  { value: "new_and_changed", label: "Новые и изменения" },
+  { value: "new_only", label: "Только новые" },
+];
+
 function parseOptionalNumber(value: any) {
   if (value == null || value === "") return null;
   const parsed = Number(value);
@@ -177,6 +190,25 @@ function formatLastEventLabel(event: { eventType: string; createdAt: string | Da
   return formatListingEventAt(event.createdAt);
 }
 
+function getLastEventColor(eventType: string | undefined | null) {
+  if (eventType === "NEW") return "#2563eb";
+  if (eventType === "CHANGED") return "#d97706";
+  if (eventType === "REMOVED") return "#dc2626";
+  return "#6b7280";
+}
+
+function renderLastEventCell(event: { eventType: string; createdAt: string | Date } | null | undefined) {
+  if (!event) return "<span style=\"color:#9ca3af;\">—</span>";
+  return `<span style="color:${getLastEventColor(event.eventType)}; font-weight:600;">${escapeHtml(formatListingEventAt(event.createdAt))}</span>`;
+}
+
+function renderHistorySummaryHtml(summary: string) {
+  const escaped = escapeHtml(summary);
+  return escaped
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noreferrer noopener">$1</a>')
+    .replace(/\n/g, "<br />");
+}
+
 function compareLastEventDates(
   a: { id: string; createdAt: Date; lastSeenAt: Date; isActive: boolean },
   b: { id: string; createdAt: Date; lastSeenAt: Date; isActive: boolean },
@@ -203,6 +235,15 @@ function buildPlanOptionMarkup(selectedPlanId?: string | null) {
     .map((plan) => {
       const selected = selectedPlanId === plan.value ? " selected" : "";
       return `<option value="${escapeHtml(plan.value)}"${selected}>${escapeHtml(plan.label)}</option>`;
+    })
+    .join("");
+}
+
+function buildOptionsMarkup(options: Array<{ value: string; label: string }>, selectedValue?: string | null) {
+  return options
+    .map((option) => {
+      const selected = selectedValue === option.value ? " selected" : "";
+      return `<option value="${escapeHtml(option.value)}"${selected}>${escapeHtml(option.label)}</option>`;
     })
     .join("");
 }
@@ -702,6 +743,8 @@ function renderUsersPage(options: {
 
 function renderSubscriptionFormMarkup(options: {
   userOptions: string;
+  sourceOptionMarkup: string;
+  notificationModeOptionMarkup: string;
   categoryOptionMarkup: string;
   returnTo: string;
 }) {
@@ -709,10 +752,10 @@ function renderSubscriptionFormMarkup(options: {
       <h3>Создать подписку</h3>
       <form method="POST" action="/subscriptions" class="compact-form subscriptions-form" style="max-width: 1200px;">
         <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}" />
-        <div class="form-row" style="grid-template-columns: 1.2fr 1fr 0.8fr;">
+        <div class="form-row" style="grid-template-columns: 1.2fr 1fr 0.9fr 0.8fr;">
           <div class="form-group">
             <label>Название подписки</label>
-            <input name="name" placeholder="e.g., Minsk 2 rooms" />
+            <input name="name" placeholder="Например, Minsk 2 rooms" required />
           </div>
           <div class="form-group">
             <label>User ID</label>
@@ -721,11 +764,17 @@ function renderSubscriptionFormMarkup(options: {
             </select>
           </div>
           <div class="form-group">
+            <label>Источник</label>
+            <select name="source" required>
+              ${options.sourceOptionMarkup}
+            </select>
+          </div>
+          <div class="form-group">
             <label>Интервал (минуты)</label>
             <input name="intervalMinutes" type="number" value="30" required />
           </div>
         </div>
-        <div class="form-row" style="grid-template-columns: 1fr 0.9fr 1fr 1.8fr auto; align-items:end;">
+        <div class="form-row" style="grid-template-columns: 1fr 0.9fr 0.9fr 1fr 1.8fr auto; align-items:end;">
           <div class="form-group">
             <label>Категория поиска</label>
             <select name="category" required>
@@ -737,6 +786,12 @@ function renderSubscriptionFormMarkup(options: {
             <select name="sellerTypeFilter" required>
               <option value="all">Все</option>
               <option value="private">Только физлица</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Уведомления</label>
+            <select name="notificationMode" required>
+              ${options.notificationModeOptionMarkup}
             </select>
           </div>
           <div class="form-group">
@@ -777,6 +832,8 @@ function renderSubscriptionsPage(options: {
   subscriptionFiltersById: Map<string, ReturnType<typeof getSubscriptionFilters>>;
   categoryLabelByValue: Record<string, string>;
   userOptions: string;
+  sourceOptionMarkup: string;
+  notificationModeOptionMarkup: string;
   categoryOptionMarkup: string;
   returnTo: string;
   pagination: ReturnType<typeof buildPaginationMeta>;
@@ -792,6 +849,8 @@ function renderSubscriptionsPage(options: {
       <p><em>Подписка привязана к пользователю и задаёт дополнительные фильтры для уведомлений.</em></p>
       ${renderSubscriptionFormMarkup({
         userOptions: options.userOptions,
+        sourceOptionMarkup: options.sourceOptionMarkup,
+        notificationModeOptionMarkup: options.notificationModeOptionMarkup,
         categoryOptionMarkup: options.categoryOptionMarkup,
         returnTo: options.returnTo,
       })}
@@ -803,8 +862,10 @@ function renderSubscriptionsPage(options: {
             <th>№</th>
             ${renderSortableHeader("Name", "name", "string", options.currentSort)}
             ${renderSortableHeader("Owner", "owner", "string", options.currentSort)}
+            <th>Источник</th>
             <th>Category</th>
             ${renderSortableHeader("Seller", "seller", "string", options.currentSort)}
+            <th>Notify</th>
             <th>Max price</th>
             <th>Rooms</th>
             ${renderSortableHeader("Interval", "interval", "number", options.currentSort)}
@@ -819,8 +880,10 @@ function renderSubscriptionsPage(options: {
               <td>${getDisplayRowNumber(options.pagination, index)}</td>
               <td>${escapeHtml(s.name)}</td>
               <td>${escapeHtml(s.userId ? getUserDisplayName(options.usersById.get(s.userId)) : "-")}</td>
+              <td>${escapeHtml(SOURCE_LABEL_BY_VALUE[normalizeSource(s.source)] ?? normalizeSource(s.source))}</td>
               <td>${escapeHtml(s.category ? (options.categoryLabelByValue[s.category] ?? "-") : "-")}</td>
               <td>${escapeHtml(s.sellerTypeFilter === "private" ? "Только физлица" : "Все")}</td>
+              <td>${escapeHtml(s.notificationMode === "new_only" ? "Только новые" : "Новые + изменения")}</td>
               <td>${options.subscriptionFiltersById.get(s.id)?.maxPrice != null ? `$${options.subscriptionFiltersById.get(s.id)?.maxPrice}` : "-"}</td>
               <td>${escapeHtml(formatRoomsList(options.subscriptionFiltersById.get(s.id)?.rooms))}</td>
               <td>${s.intervalMinutes} мин</td>
@@ -888,17 +951,18 @@ function renderListingsPage(options: {
           ${options.listings.map((l, index) => `
             <tr class="${l.isActive ? "" : "listing-row inactive"}">
               <td>${getDisplayRowNumber(options.pagination, index)}</td>
-              <td>${escapeHtml(l.title)}</td>
+              <td><a href="/history/${l.id}" style="color:#007bff; text-decoration:none; font-weight:600;">${escapeHtml(l.title)}</a></td>
               <td><span class="compact-badge category">${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</span></td>
               <td><span class="compact-badge ${escapeHtml(l.sellerType === "company" ? "company" : l.sellerType === "private" ? "private" : "unknown")}">${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</span></td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td>${l.rooms ?? "-"}</td>
               <td class="attempt-column">${escapeHtml(formatListingAttemptCount(l.missingCount))}</td>
-              <td class="event-column">${escapeHtml(formatLastEventLabel(options.latestEventByListingId.get(l.id)))}</td>
+              <td class="event-column">${renderLastEventCell(options.latestEventByListingId.get(l.id))}</td>
               <td>
                 <div class="link-icons">
-                  <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" title="Открыть объявление">↗</a>
-                  <a href="/history/${l.id}" target="_blank" title="История">⌕</a>
+                  <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" title="Открыть объявление">
+                    <img src="https://pbs.twimg.com/profile_images/829644122202001408/wkcfnIa9.jpg" alt="Kufar" width="18" height="18" style="display:block; object-fit:cover; object-position:center; border-radius:4px;" />
+                  </a>
                 </div>
               </td>
               <td data-sort-value="${l.isActive ? 1 : 0}">
@@ -1115,9 +1179,9 @@ app.get("/ui/subscriptions", async (req: any, reply) => {
       return `<option value="${escapeHtml(user.id)}">${escapeHtml(label)}</option>`;
     })
     .join("");
-  const categoryOptionMarkup = categoryOptions
-    .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
-    .join("");
+  const categoryOptionMarkup = buildOptionsMarkup(categoryOptions, KUFAR_CATEGORIES.apartments);
+  const sourceOptionMarkup = buildOptionsMarkup(SOURCE_OPTIONS, "kufar.by");
+  const notificationModeOptionMarkup = buildOptionsMarkup(NOTIFICATION_MODE_OPTIONS, "new_and_changed");
 
   reply.type("text/html; charset=utf-8").send(renderSubscriptionsPage({
     subscriptions,
@@ -1125,6 +1189,8 @@ app.get("/ui/subscriptions", async (req: any, reply) => {
     subscriptionFiltersById,
     categoryLabelByValue,
     userOptions,
+    sourceOptionMarkup,
+    notificationModeOptionMarkup,
     categoryOptionMarkup,
     returnTo: buildPaginationUrl("/ui/subscriptions", req.query ?? {}, pagination.page, pagination.pageSize),
     pagination,
@@ -1264,7 +1330,9 @@ app.post("/subscriptions", async (req: any, reply) => {
   const body = req.body;
   const returnTo = typeof body.returnTo === "string" && body.returnTo ? body.returnTo : "/ui/subscriptions";
   const userId = body.userId || null;
+  const source = normalizeSource(body.source);
   const sellerTypeFilter = body.sellerTypeFilter === "private" ? "private" : "all";
+  const notificationMode = body.notificationMode === "new_only" ? "new_only" : "new_and_changed";
   const maxPrice = parseOptionalNumber(body.maxPrice);
   const rooms = parseRoomsSelection(body.rooms);
   const requestedIntervalMinutes = parseOptionalNumber(body.intervalMinutes) ?? 30;
@@ -1282,8 +1350,10 @@ app.post("/subscriptions", async (req: any, reply) => {
     data: {
       name: body.name || "unnamed",
       userId,
+      source,
       category: body.category || null,
       sellerTypeFilter,
+      notificationMode,
       maxPrice,
       rooms,
       intervalMinutes,
@@ -1302,6 +1372,7 @@ app.post("/subscriptions", async (req: any, reply) => {
         where: {
           lastSeenAt: { gte: cutoff },
           isActive: true,
+          source: { in: ["kufar.by", "kufar"] },
         },
         orderBy: [
           { lastSeenAt: "desc" },
@@ -1315,6 +1386,7 @@ app.post("/subscriptions", async (req: any, reply) => {
           price: listing.price,
           rooms: listing.rooms,
           category: listing.category,
+          source: listing.source,
         }),
       );
 
@@ -1401,7 +1473,7 @@ app.get("/history/:id", async (req: any, reply) => {
   for (const event of history) {
     html += "<div style='margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #ddd;'>";
     html += "<div><strong>" + escapeHtml(event.eventType) + "</strong> — " + new Date(event.createdAt).toLocaleString() + "</div>";
-    html += "<pre style='margin:8px 0 0; white-space:pre-wrap; font-family:inherit;'>" + escapeHtml(formatEventSummary(event.eventType, event.changesJson)) + "</pre>";
+    html += "<div style='margin:8px 0 0; white-space:pre-wrap; font-family:inherit; line-height:1.45;'>" + renderHistorySummaryHtml(formatEventSummary(event.eventType, event.changesJson)) + "</div>";
     html += "</div>";
   }
   

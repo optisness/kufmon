@@ -248,6 +248,7 @@ event_type:
 -   INDEX(last_check_at)
 
 Subscriptions also carry `seller_type_filter`, which is currently either `all` or `private` and is used to filter notification delivery.
+They also store `source` (currently `kufar.by`) and `notification_mode` (`new_and_changed` or `new_only`) so the sync pipeline can keep multiple advertisement feeds separate and suppress CHANGED Telegram alerts when requested.
 
 ## user_subscriptions
 

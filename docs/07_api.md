@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Partially implemented (service provides a minimal set of endpoints)
-**Last updated:** 2026-07-23
+**Last updated:** 2026-07-24
 
 ---
 
@@ -74,8 +74,10 @@ Request:
 {
     "name": "Minsk 2 rooms",
     "userId": "user-123",
+    "source": "kufar.by",
     "category": "1010",
     "sellerTypeFilter": "private",
+    "notificationMode": "new_and_changed",
     "maxPrice": 80000,
     "rooms": [2],
     "intervalMinutes": 30
@@ -86,7 +88,7 @@ A subscription owns optional filter criteria and is attached to a single user. T
 
 In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name. The `category` field stores the Kufar category code used for the search, while the UI shows one-word labels such as `Квартира`, `Дом`, `Коммерция`, and `Участок`. The `sellerTypeFilter` field supports `all` and `private`, so a subscription can receive either every matching listing or only private sellers. After creation, the service sends the user a Telegram backfill containing matching active listings from the last subscription interval.
 
-The subscription creation form is compacted into two visual rows in the admin UI: the first row contains name, user, and interval; the second row contains category, seller type, max price, rooms, and submit.
+The subscription creation form is compacted into two visual rows in the admin UI: the first row contains name, user, source, and interval; the second row contains category, seller type, notification mode, max price, rooms, and submit.
 
 Response:
 
@@ -495,3 +497,9 @@ The public API is not responsible for:
 - scheduler management.
 
 These are internal service components.
+
+# Implementation Notes Update
+
+- Subscriptions now also store `source` and `notificationMode`.
+- Admin listings link the title to the history page, keep the Kufar page link as a compact logo, and color the latest-event date by event type.
+- History summaries render stored photo URLs as clickable links.
