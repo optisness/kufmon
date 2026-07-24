@@ -7,7 +7,7 @@ import { sendTelegram } from "./telegram.js";
 import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
-import { formatEventSummary } from "./listingEvents.js";
+import { renderHistoryPageHtml } from "./historyView.js";
 import { formatListingAttemptCount, formatListingEventAt } from "./listingTable.js";
 import {
   ADMIN_LOGIN_LOCK_MS,
@@ -244,45 +244,6 @@ function getLastEventColor(eventType: string | undefined | null) {
 function renderLastEventCell(event: { eventType: string; createdAt: string | Date } | null | undefined) {
   if (!event) return "<span style=\"color:#9ca3af;\">—</span>";
   return `<span style="color:${getLastEventColor(event.eventType)}; font-weight:600;">${escapeHtml(formatListingEventAt(event.createdAt))}</span>`;
-}
-
-function renderHistorySummaryHtml(summary: string) {
-  const lines = String(summary ?? "").split(/\r?\n/);
-  const parts: string[] = [];
-
-  for (const line of lines) {
-    const photoMatch = line.match(/^Все фото:\s*(.+)$/);
-
-    if (photoMatch) {
-      const urls = photoMatch[1]
-        .split(/\s*,\s*/)
-        .map((url) => url.trim())
-        .filter(Boolean);
-
-      if (urls.length > 0) {
-        parts.push(
-          `<div style="margin-top:8px;">` +
-            `<div style="font-size:13px; color:#6b7280; margin-bottom:6px;">Все фото</div>` +
-            `<div style="display:flex; flex-wrap:wrap; gap:8px;">` +
-              urls.map((url) =>
-                `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer noopener" style="display:inline-flex; width:96px; height:96px; overflow:hidden; border-radius:10px; border:1px solid #d1d5db; background:#f3f4f6;">` +
-                  `<img src="${escapeHtml(url)}" alt="Фото объявления" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block;" />` +
-                `</a>`,
-              ).join("") +
-            `</div>` +
-          `</div>`,
-        );
-      }
-
-      continue;
-    }
-
-    const escapedLine = escapeHtml(line)
-      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noreferrer noopener">$1</a>');
-    parts.push(`<div>${escapedLine}</div>`);
-  }
-
-  return parts.join("");
 }
 
 function compareLastEventDates(
@@ -1579,27 +1540,7 @@ app.get("/history/:id", async (req: any, reply) => {
     orderBy: { createdAt: "asc" },
   });
 
-  let html = "<html><head><meta charset='UTF-8' /></head>";
-  html += "<body style='font-family: Arial; padding: 20px'>";
-  html += "<div style='display:flex; justify-content:flex-start; align-items:center; gap:12px; flex-wrap:wrap;'>";
-  html += "<a href='/ui/listings' style='display:inline-flex; align-items:center; padding:8px 12px; background:#007bff; color:#fff; text-decoration:none; border-radius:6px; font-size:14px;'>Все объявления</a>";
-  html += "<h2 style='margin:0;'>История изменений</h2>";
-  html += "</div>";
-  
-  if (history.length === 0) {
-    html += "<div>Нет событий</div>";
-  }
-
-  for (const event of history) {
-    html += "<div style='margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #ddd;'>";
-    html += "<div><strong>" + escapeHtml(event.eventType) + "</strong> — " + new Date(event.createdAt).toLocaleString() + "</div>";
-    html += "<div style='margin:8px 0 0; font-family:inherit; line-height:1.45;'>" + renderHistorySummaryHtml(formatEventSummary(event.eventType, event.changesJson)) + "</div>";
-    html += "</div>";
-  }
-  
-  html += "</body></html>";
-
-  reply.type("text/html; charset=utf-8").send(html);
+  reply.type("text/html; charset=utf-8").send(renderHistoryPageHtml(history));
 });
 
 app.get("/test-tg", async () => {

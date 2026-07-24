@@ -502,4 +502,4 @@ These are internal service components.
 
 - Subscriptions now also store `source` and `notificationMode`.
 - Admin listings link the title to the history page, keep the Kufar page link as a compact logo, and color the latest-event date by event type.
-- History summaries render stored photo URLs as clickable links.
+- History summaries render stored photo URLs as thumbnail galleries. Clicking a thumbnail opens a lightbox that supports previous/next navigation through the photos of that listing event.
