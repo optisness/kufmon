@@ -366,7 +366,7 @@ describe('Kufar sync', () => {
     expect(metrics.newListings).toBe(2);
   });
 
-  it('records a price change and sends an alert when listing price drops', async () => {
+  it('records a price change and sends an alert when the source price drops', async () => {
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'user-1', telegramChatId: '123' },
     ]);
@@ -382,7 +382,7 @@ describe('Kufar sync', () => {
     ]);
     prismaMock.listing.findMany
       .mockResolvedValueOnce([
-        { id: '1', price: 600, contentHash: 'old', description: 'Stable description', imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg', rooms: 2, isActive: true, category: '1010', title: 'Old title', url: 'https://re.kufar.by/vi/1', location: null, missingCount: 0 },
+        { id: '1', price: 600, currency: 'USD', sourcePrice: 60000, contentHash: 'old', description: 'Stable description', imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg', rooms: 2, isActive: true, category: '1010', title: 'Old title', url: 'https://re.kufar.by/vi/1', location: null, missingCount: 0 },
       ])
       .mockResolvedValueOnce([]);
     prismaMock.listing.update.mockResolvedValue({ id: '1' });
@@ -461,7 +461,7 @@ describe('Kufar sync', () => {
     ]);
     prismaMock.listing.findMany
       .mockResolvedValueOnce([
-        { id: '1', price: 600, contentHash: 'old', description: 'Stable description', imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg', rooms: 2, isActive: true, category: '1010', title: 'Old title', url: 'https://re.kufar.by/vi/1', location: null, missingCount: 0 },
+        { id: '1', price: 600, currency: 'BYN', sourcePrice: 17362800, contentHash: 'old', description: 'Stable description', imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg', rooms: 2, isActive: true, category: '1010', title: 'Old title', url: 'https://re.kufar.by/vi/1', location: null, missingCount: 0 },
       ])
       .mockResolvedValueOnce([]);
     prismaMock.listing.update.mockResolvedValue({ id: '1' });
@@ -476,6 +476,7 @@ describe('Kufar sync', () => {
             {
               ad_id: 1,
               subject: 'Test listing',
+              currency: 'USD',
               price_usd: '50000',
               ad_parameters: [
                 { p: 'rooms', v: '2' },
@@ -514,7 +515,7 @@ describe('Kufar sync', () => {
     expect(metrics.alertsSent).toBe(0);
   });
 
-  it('ignores price-only changes below 100 USD when building change events', async () => {
+  it('ignores exchange-rate-only changes when the source price is unchanged', async () => {
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'user-1', telegramChatId: '123' },
     ]);
@@ -544,7 +545,9 @@ describe('Kufar sync', () => {
             {
               ad_id: 1,
               subject: 'Test listing',
+              currency: 'BYN',
               price_usd: '56000',
+              price_byn: '17362800',
               ad_parameters: [
                 { p: 'rooms', v: '2' },
                 { p: 'coordinates', v: [27.5, 53.9] },

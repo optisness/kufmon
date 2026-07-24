@@ -3,6 +3,8 @@ import { createHash } from "crypto";
 export type ListingSnapshot = {
   title: string;
   price: number;
+  currency: string | null;
+  sourcePrice: number | null;
   description: string | null;
   imageUrl: string | null;
   rooms: number | null;
@@ -22,8 +24,6 @@ export type ListingChange = {
   old: string | number | null;
   new: string | number | null;
 };
-
-const MIN_PRICE_CHANGE_USD = 100;
 
 function normalizeText(value: any) {
   if (value == null) return null;
@@ -68,9 +68,14 @@ function getAdParameterValue(ad: any, key: string) {
 
 export function normalizeKufarListing(ad: any, fallbackCategory: string | null): ListingSnapshot {
   const title = normalizeText(ad?.subject) ?? "Unknown";
+  const currency = normalizeText(ad?.currency)?.toUpperCase() ?? "USD";
   const rawUsd = ad?.price_usd != null ? Number(ad.price_usd) / 100 : null;
   const rawByn = ad?.price_byn != null ? Number(ad.price_byn) / 100 : null;
   const price = Number.isFinite(rawUsd as number) ? (rawUsd as number) : Number.isFinite(rawByn as number) ? (rawByn as number) : 0;
+  const sourcePriceRaw = currency === "BYN"
+    ? (ad?.price_byn ?? ad?.price_usd ?? null)
+    : (ad?.price_usd ?? ad?.price_byn ?? null);
+  const sourcePrice = sourcePriceRaw != null && Number.isFinite(Number(sourcePriceRaw)) ? Number(sourcePriceRaw) : null;
   const roomsRaw = ad?.rooms ?? ad?.ad_parameters?.find?.((p: any) => p?.p === "rooms")?.v ?? null;
   const rooms = roomsRaw != null && Number.isFinite(Number(roomsRaw)) ? Number(roomsRaw) : null;
   const description = normalizeText(ad?.body ?? ad?.body_short ?? ad?.description ?? null);
@@ -85,6 +90,8 @@ export function normalizeKufarListing(ad: any, fallbackCategory: string | null):
   return {
     title,
     price,
+    currency,
+    sourcePrice,
     description,
     imageUrl,
     rooms,
@@ -96,9 +103,10 @@ export function normalizeKufarListing(ad: any, fallbackCategory: string | null):
   };
 }
 
-export function buildContentHash(snapshot: Pick<ListingSnapshot, "price" | "description" | "imageUrl" | "rooms">) {
+export function buildContentHash(snapshot: Pick<ListingSnapshot, "currency" | "sourcePrice" | "description" | "imageUrl" | "rooms">) {
   const payload = JSON.stringify({
-    price: snapshot.price,
+    currency: snapshot.currency ?? null,
+    sourcePrice: snapshot.sourcePrice ?? null,
     description: snapshot.description,
     imageUrl: snapshot.imageUrl,
     rooms: snapshot.rooms,
@@ -107,16 +115,21 @@ export function buildContentHash(snapshot: Pick<ListingSnapshot, "price" | "desc
   return createHash("sha256").update(payload).digest("hex");
 }
 
-export function diffListingSnapshots(previous: Pick<ListingSnapshot, "price" | "description" | "imageUrl" | "rooms">, next: Pick<ListingSnapshot, "price" | "description" | "imageUrl" | "rooms">) {
+export function diffListingSnapshots(previous: Pick<ListingSnapshot, "price" | "currency" | "sourcePrice" | "description" | "imageUrl" | "rooms">, next: Pick<ListingSnapshot, "price" | "currency" | "sourcePrice" | "description" | "imageUrl" | "rooms">) {
   const changes: ListingChange[] = [];
 
   const fields: ListingChangeField[] = ["price", "description", "imageUrl", "rooms"];
 
   for (const field of fields) {
     if (field === "price") {
-      const previousPrice = Number(previous.price);
-      const nextPrice = Number(next.price);
-      if (Number.isFinite(previousPrice) && Number.isFinite(nextPrice) && Math.abs(previousPrice - nextPrice) < MIN_PRICE_CHANGE_USD) {
+      const previousSourcePrice = previous.sourcePrice;
+      const nextSourcePrice = next.sourcePrice;
+      const previousCurrency = previous.currency ?? null;
+      const nextCurrency = next.currency ?? null;
+      const sourceChanged = previousCurrency !== nextCurrency || previousSourcePrice !== nextSourcePrice;
+      const displayChanged = previous.price !== next.price;
+
+      if (!sourceChanged && !displayChanged) {
         continue;
       }
     }

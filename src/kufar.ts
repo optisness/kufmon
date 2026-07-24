@@ -395,7 +395,8 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
       description: ad.snapshot.description,
       imageUrl: ad.snapshot.imageUrl,
       rooms: ad.snapshot.rooms,
-      currency: "USD",
+      currency: ad.snapshot.currency ?? "USD",
+      sourcePrice: ad.snapshot.sourcePrice ?? null,
       url: ad.snapshot.url,
       location: ad.snapshot.location ?? existing?.location ?? null,
       source: KUFAR_SOURCE,
@@ -496,7 +497,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
       continue;
     }
 
-    if (existing.contentHash == null) {
+    if (existing.sourcePrice == null) {
       await prisma.listing.update({
         where: { id: ad.id },
         data: baseData,
@@ -506,12 +507,16 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
 
     const previousSnapshot = {
       price: existing.price,
+      currency: existing.currency,
+      sourcePrice: existing.sourcePrice,
       description: existing.description ?? null,
       imageUrl: existing.imageUrl ?? null,
       rooms: existing.rooms ?? null,
     };
     const nextSnapshot = {
       price: ad.snapshot.price,
+      currency: ad.snapshot.currency,
+      sourcePrice: ad.snapshot.sourcePrice,
       description: ad.snapshot.description,
       imageUrl: ad.snapshot.imageUrl,
       rooms: ad.snapshot.rooms,
@@ -590,6 +595,8 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
               return {
                 title: listing.title,
                 price: listing.price,
+                currency: listing.currency ?? null,
+                sourcePrice: listing.sourcePrice ?? null,
                 description: listing.description ?? null,
                 imageUrl: listing.imageUrl ?? null,
                 rooms: listing.rooms ?? null,

@@ -12,6 +12,7 @@ model Listing {
   title    String
   price    Int
   currency String
+  sourcePrice Int?
   url      String  @unique
   location String?
   description String?

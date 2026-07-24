@@ -140,7 +140,7 @@ Current fixed tariffs:
 
 Последнее состояние объявления.
 
-Implementation note: `Listing.price` is the normalized USD price used everywhere in the UI, Telegram messages, and history.
+Implementation note: `Listing.price` is the normalized USD price used everywhere in the UI, Telegram messages, and history. `Listing.currency` stores the original Kufar currency, and `sourcePrice` stores the raw source price used for change detection, so exchange-rate drift does not create false `CHANGED` events.
 
   Поле
   --------------------
@@ -156,6 +156,7 @@ Implementation note: `Listing.price` is the normalized USD price used everywhere
   district
   price_usd
   price_byn
+  sourcePrice
   rooms
   area_total
   floor

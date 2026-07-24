@@ -1,6 +1,6 @@
 # 03_sync_algorithm.md
 
-Current implementation note: the persisted entity is `Listing`; immutable history rows are written to `AdEvent`; change detection tracks only `price`, `description`, `imageUrl`, and `rooms`; `missingCount` protects against temporary source failures; `REMOVED` is emitted only on the third consecutive miss; and if a listing returns after the first or second miss unchanged, no event is written.
+Current implementation note: the persisted entity is `Listing`; immutable history rows are written to `AdEvent`; change detection tracks the listing's source currency and raw source price together with `description`, `imageUrl`, and `rooms`; `missingCount` protects against temporary source failures; `REMOVED` is emitted only on the third consecutive miss; and if a listing returns after the first or second miss unchanged, no event is written.
 
 # Алгоритм синхронизации объявлений
 

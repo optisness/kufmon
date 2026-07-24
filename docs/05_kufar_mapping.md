@@ -140,6 +140,7 @@ Incoming values:
 
 Kufar stores prices in minor monetary units.
 The service treats `price_usd` as the canonical price source and displays it with a `$` prefix.
+For change detection, the service also stores the listing's original Kufar `currency` and the matching raw source price (`price_usd` when `currency` is `USD`, `price_byn` when `currency` is `BYN`), so Telegram alerts are driven by real source-price changes rather than exchange-rate drift.
 
 Normalization:
 
