@@ -52,6 +52,20 @@ function extractFirstImageUrl(images: any) {
   return `https://rms.kufar.by/v1/gallery/${text.replace(/^\/+/, "")}`;
 }
 
+function getAdParameterValue(ad: any, key: string) {
+  const groups = [ad?.account_parameters, ad?.ad_parameters];
+
+  for (const group of groups) {
+    if (!Array.isArray(group)) continue;
+
+    const match = group.find((item: any) => item?.p === key);
+    const value = normalizeText(match?.v);
+    if (value) return value;
+  }
+
+  return null;
+}
+
 export function normalizeKufarListing(ad: any, fallbackCategory: string | null): ListingSnapshot {
   const title = normalizeText(ad?.subject) ?? "Unknown";
   const rawUsd = ad?.price_usd != null ? Number(ad.price_usd) / 100 : null;
@@ -63,6 +77,7 @@ export function normalizeKufarListing(ad: any, fallbackCategory: string | null):
   const imageUrl = extractFirstImageUrl(ad?.images);
   const category = ad?.category != null ? String(ad.category) : fallbackCategory;
   const sellerType = ad?.company_ad === true ? "company" : ad?.company_ad === false ? "private" : null;
+  const address = normalizeText(ad?.address ?? getAdParameterValue(ad, "address") ?? getAdParameterValue(ad, "location") ?? null);
   const coords = Array.isArray(ad?.c) && ad.c.length >= 2 ? [Number(ad.c[0]), Number(ad.c[1])] : null;
   const location = coords ? `${coords[1]}, ${coords[0]}` : null;
   const url = normalizeText(ad?.ad_link || ad?.url || (ad?.ad_id != null ? `https://re.kufar.by/vi/${String(ad.ad_id)}` : null)) ?? "";
@@ -77,6 +92,7 @@ export function normalizeKufarListing(ad: any, fallbackCategory: string | null):
     sellerType,
     url,
     location,
+    address,
   };
 }
 

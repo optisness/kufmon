@@ -12,6 +12,7 @@ describe("historyView", () => {
     expect(summary).toContain('data-history-gallery-index="1"');
     expect(summary).toContain('img src="https://rms.kufar.by/v1/gallery/adim1/photo-1.jpg"');
     expect(summary).toContain('img src="https://rms.kufar.by/v1/gallery/adim1/photo-2.jpg"');
+    expect(summary).toContain("Все фото");
 
     const pageHtml = renderHistoryPageHtml([
       {
@@ -43,5 +44,6 @@ describe("historyView", () => {
     expect(pageHtml).toContain('history-lightbox-next');
     expect(pageHtml).toContain("ArrowLeft");
     expect(pageHtml).toContain("ArrowRight");
+    expect(pageHtml).toContain("24-07 03:00");
   });
 });

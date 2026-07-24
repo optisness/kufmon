@@ -1,4 +1,5 @@
 import { formatEventSummary } from "./listingEvents.js";
+import { formatListingEventAt } from "./listingTable.js";
 
 type HistoryEventView = {
   eventType: string;
@@ -275,7 +276,7 @@ export function renderHistoryPageHtml(history: HistoryEventView[], backUrl = "/u
 
   for (const event of history) {
     html += "<div class='history-card'>";
-    html += "<div class='history-card__meta'><strong>" + escapeHtml(event.eventType) + "</strong> — " + new Date(event.createdAt).toLocaleString() + "</div>";
+    html += "<div class='history-card__meta'><strong>" + escapeHtml(event.eventType) + "</strong> — " + escapeHtml(formatListingEventAt(event.createdAt)) + "</div>";
     html += "<div class='history-card__summary'>" + renderHistorySummaryHtml(formatEventSummary(event.eventType, event.changesJson)) + "</div>";
     html += "</div>";
   }

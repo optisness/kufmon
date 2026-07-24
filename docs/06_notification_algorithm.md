@@ -257,6 +257,7 @@ Price-only updates below 50 USD are ignored and do not create a `CHANGED` event.
 For `rooms`, the subscription filter supports the special `5+` value, which matches any listing with five or more rooms.
 When the sync creates a `NEW` history event, the payload stores the normalized snapshot plus the full address, the full description text, and all photo URLs for later inspection in the admin history view.
 The admin history view renders those photo URLs as a thumbnail gallery; clicking a thumbnail opens a lightbox that lets operators move through the full photo set with arrows.
+History timestamps in the admin view are shown in Minsk time (`Europe/Minsk`) so they match the rest of the admin tables.
 
 ## NEW
 
@@ -444,3 +445,4 @@ Possible additions:
 - Subscriptions can opt into `new_only` mode; in that mode CHANGED events are not delivered to Telegram.
 - The NEW history payload stores the full address, the full description text, and all photo URLs for admin inspection.
 - In the admin history view, those photos are shown as thumbnails and open in a gallery lightbox with arrow navigation.
+- History timestamps in the admin view use Minsk time, matching the listings table.
