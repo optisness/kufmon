@@ -777,6 +777,7 @@ function renderApplicationFormPage() {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kufmon Application Form</title>
   <style>
+    html { scroll-behavior: smooth; }
     body { margin: 0; min-height: 100vh; font-family: Arial, sans-serif; background: linear-gradient(180deg, #111827 0%, #1f2937 100%); color: #f8fafc; }
     .wrap { max-width: 820px; margin: 0 auto; padding: 28px 16px 40px; }
     .panel { background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 18px; padding: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.28); }
@@ -784,20 +785,106 @@ function renderApplicationFormPage() {
     p { margin: 0 0 18px; color: #cbd5e1; line-height: 1.5; }
     .form-shell { overflow: hidden; border-radius: 16px; background: #fff; min-height: 1020px; }
     iframe { display:block; width:100%; min-height: 1020px; border:0; }
-    .footer { margin-top: 14px; font-size: 13px; color: #94a3b8; }
+    .tariffs { margin-top: 22px; }
+    .tariffs h2 { margin: 0 0 12px; font-size: 22px; }
+    .tariffs table { width: 100%; border-collapse: collapse; background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 14px; overflow: hidden; }
+    .tariffs th, .tariffs td { padding: 14px 12px; vertical-align: top; text-align: left; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
+    .tariffs th { width: 140px; color: #f8fafc; background: rgba(15, 23, 42, 0.92); }
+    .tariffs td { color: #e2e8f0; line-height: 1.5; }
+    .tariffs tr:last-child th, .tariffs tr:last-child td { border-bottom: 0; }
+    .tariffs .price { white-space: nowrap; font-weight: 700; }
+    .tariffs .note { margin-top: 12px; color: #94a3b8; font-size: 13px; }
     a { color: #7dd3fc; }
+    @media (max-width: 640px) {
+      .wrap { padding: 14px 10px 24px; }
+      .panel { padding: 14px; border-radius: 16px; }
+      h1 { font-size: 22px; line-height: 1.25; }
+      .form-shell { min-height: 860px; }
+      iframe { min-height: 860px; }
+      .tariffs { margin-top: 18px; }
+      .tariffs h2 { font-size: 20px; }
+      .tariffs table,
+      .tariffs tbody,
+      .tariffs tr,
+      .tariffs th,
+      .tariffs td { display: block; width: 100%; }
+      .tariffs table { background: transparent; border: 0; }
+      .tariffs tr {
+        margin-bottom: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 14px;
+        overflow: hidden;
+        background: #0f172a;
+      }
+      .tariffs th {
+        width: auto;
+        padding: 12px 14px 8px;
+        background: rgba(15, 23, 42, 0.98);
+        border-bottom: 0;
+        font-size: 17px;
+      }
+      .tariffs td {
+        padding: 0 14px 14px;
+        border-bottom: 0;
+        font-size: 14px;
+      }
+      .tariffs td > div { margin-top: 6px; }
+      .tariffs td > div:first-child { margin-top: 4px; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="panel">
-      <h1>Заявка</h1>
-      <p>Заполните форму ниже. Если страница открыта из Telegram, можно отправить её сразу в ответ боту.</p>
+      <h1>Ознакомиться с тарифами можно <a href="#tariffs">ниже</a>.</h1>
       <div class="form-shell">
         <script src="https://forms.yandex.ru/_static/embed.js"></script>
         <iframe src="https://forms.yandex.ru/u/6a620e874936395b9dc66a9a?iframe=1" frameborder="0" name="ya-form-6a620e874936395b9dc66a9a"></iframe>
       </div>
-      <div class="footer">Если форма не загрузилась, откройте страницу заново или проверьте блокировщик контента.</div>
+      <div class="tariffs" id="tariffs">
+        <h2>Тарифы</h2>
+        <table>
+          <tr>
+            <th>Подбор</th>
+            <td>
+              <div class="price">$24.99 / мес</div>
+              <div>Для личного поиска без лишнего шума.</div>
+              <div>1 подписка, 1 чат или группа для уведомлений.</div>
+              <div>Интервал мониторинга — 20 минут.</div>
+              <div>Фильтр по продавцу, цене, наличию фото, количеству комнат.</div>
+            </td>
+          </tr>
+          <tr>
+            <th>Риелтор</th>
+            <td>
+              <div class="price">$49 / мес</div>
+              <div>Для ежедневной работы и быстрых решений.</div>
+              <div>3 подписки, 1 чат или группа для уведомлений.</div>
+              <div>Фильтр по продавцу, цене, фото, комнатам, этажу, площади.</div>
+            </td>
+          </tr>
+          <tr>
+            <th>Команда</th>
+            <td>
+              <div class="price">$99 / мес</div>
+              <div>Для небольшой команды и общего рабочего потока.</div>
+              <div>10 подписок, несколько чатов или 1 группа для уведомлений.</div>
+              <div>Фильтр по продавцу, цене, наличию фото, количеству комнат, этажу, площади, ключевым словам.</div>
+              <div>API для интеграций.</div>
+            </td>
+          </tr>
+          <tr>
+            <th>Агентство</th>
+            <td>
+              <div class="price">$199 / мес</div>
+              <div>Для агентства, которое работает с большим потоком заявок.</div>
+              <div>25+ подписок, любые чаты и группы для уведомлений.</div>
+              <div>Фильтр по продавцу, цене, наличию фото, количеству комнат, этажу, площади, ключевым словам и словам-исключениям.</div>
+              <div>API для интеграций.</div>
+            </td>
+          </tr>
+        </table>
+      </div>
     </div>
   </div>
 </body>
