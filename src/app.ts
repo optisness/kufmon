@@ -347,6 +347,7 @@ function buildAdminNav(activePath: string) {
     { href: "/ui/users", label: "Пользователи" },
     { href: "/ui/subscriptions", label: "Подписки" },
     { href: "/ui/listings", label: "Объявления" },
+    { href: "/ui/telegram-deliveries", label: "Telegram" },
     { href: "/health", label: "Health" },
     { href: "/sync", label: "Sync" },
   ];
@@ -650,6 +651,57 @@ function renderHealthPage(options: {
         <p><strong>Public:</strong> <code>/health</code></p>
         <p><strong>Protected debug:</strong> <code>/metrics</code>, <code>/kufar</code>, <code>/sync</code></p>
       </div>
+    </div>
+    `,
+  });
+}
+
+function renderTelegramDeliveriesPage(options: {
+  deliveries: any[];
+  pagination: ReturnType<typeof buildPaginationMeta>;
+  query: Record<string, unknown>;
+}) {
+  return renderAdminLayout({
+    title: "Telegram",
+    activePath: "/ui/telegram-deliveries",
+    body: `
+    <div class="section">
+      <h2>Telegram</h2>
+      <p>Журнал отправленных сообщений: пользователь, время, назначение и результат доставки.</p>
+      <table data-sort-table="telegram-deliveries">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Время</th>
+            <th>Пользователь</th>
+            <th>Chat ID</th>
+            <th>Purpose</th>
+            <th>Result</th>
+            <th>Status</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${options.deliveries.map((delivery, index) => `
+            <tr class="${delivery.success ? "" : "listing-row inactive"}">
+              <td>${getDisplayRowNumber(options.pagination, index)}</td>
+              <td>${escapeHtml(formatListingEventAt(delivery.createdAt))}</td>
+              <td>${escapeHtml(delivery.userLabel || delivery.user?.name || delivery.user?.telegramChatId || "-")}</td>
+              <td>${escapeHtml(delivery.chatId)}</td>
+              <td>${escapeHtml(delivery.purpose)}</td>
+              <td data-sort-value="${delivery.success ? 1 : 0}" style="font-weight:700; color:${delivery.success ? "#28a745" : "#dc3545"};">${delivery.success ? "OK" : "FAIL"}</td>
+              <td>${delivery.statusCode != null ? escapeHtml(delivery.statusCode) : "-"}</td>
+              <td style="max-width: 420px; word-break: break-word;">${escapeHtml(delivery.error || "-")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      ${renderPaginationControls({
+        basePath: "/ui/telegram-deliveries",
+        query: options.query,
+        meta: options.pagination,
+        itemLabel: "сообщений",
+      })}
     </div>
     `,
   });
@@ -1356,6 +1408,35 @@ app.get("/ui/listings", async (req: any, reply) => {
     query: req.query ?? {},
     filters,
     currentSort: sortState,
+  }));
+});
+
+app.get("/ui/telegram-deliveries", async (req: any, reply) => {
+  await cleanupStaleListings();
+  const page = parsePositiveInt(req.query?.page, 1);
+  const totalItems = await prisma.telegramDeliveryLog.count();
+  const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
+  const deliveries = await prisma.telegramDeliveryLog.findMany({
+    skip: pagination.offset,
+    take: pagination.pageSize,
+    orderBy: [
+      { createdAt: "desc" },
+      { id: "desc" },
+    ],
+    include: {
+      user: {
+        select: {
+          name: true,
+          telegramChatId: true,
+        },
+      },
+    },
+  });
+
+  reply.type("text/html; charset=utf-8").send(renderTelegramDeliveriesPage({
+    deliveries,
+    pagination,
+    query: req.query ?? {},
   }));
 });
 

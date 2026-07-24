@@ -17,7 +17,7 @@ Current implementation notes:
 - The service currently runs on Node.js/TypeScript with Fastify. A minimal HTTP surface is implemented in `src/app.ts` (public login page, protected admin pages, health, sync, metrics, Kufar debug endpoints, and user/subscription management endpoints): [src/app.ts](src/app.ts#L1).
 - The public landing page at `/` shows service status and a password field. A valid password issues an authenticated admin session and redirects to `/ui/users`.
 - The public application page at `/apply` embeds the Yandex Form used from the Telegram bot.
-- The admin UI is split into protected pages: `/ui/users` for users, `/ui/subscriptions` for subscriptions, and `/ui/listings` for listings. The visible nav after login only links to Users, Subscriptions, Listings, Health, and Sync.
+- The admin UI is split into protected pages: `/ui/users` for users, `/ui/subscriptions` for subscriptions, `/ui/listings` for listings, and `/ui/telegram-deliveries` for Telegram delivery logs. The visible nav after login only links to Users, Subscriptions, Listings, Telegram, Health, and Sync.
 - The admin tables now paginate with `page` and `limit` query parameters instead of rendering the full collection in a single scroll.
 - Sorting in the admin tables is server-side and uses `sort` and `dir` query parameters, so sorted results stay consistent across paginated pages.
 - Row numbers continue across pages instead of resetting to `1` on every page.
@@ -31,6 +31,7 @@ Current implementation notes:
 - The history page formats timestamps in Minsk time (`Europe/Minsk`) and renders `NEW` event photos as a thumbnail gallery with a lightbox and arrow navigation.
 - Address extraction for `NEW` history events uses the structured `address` field from the Kufar listing response, so the history view can show it as a separate line without HTML parsing.
 - Full descriptions are taken from the Kufar listing page HTML `itemprop="description"` block, which preserves the longer text shown on the detail page.
+- Telegram delivery attempts are stored in `TelegramDeliveryLog` and the admin UI exposes them on `/ui/telegram-deliveries` with timestamp, user label, chat ID, purpose, result, status code, and error text.
 - `/health` is public so Render can probe it without a session cookie. In the browser it renders a status page with navigation; JSON is still available via `?format=json` or an `application/json` accept header.
 - `/metrics` and `/kufar` remain protected debug endpoints and are not shown in the main navigation. `metrics` returns uptime plus a few counters; `kufar` returns the raw Kufar search payload.
 - Admin login attempts are rate-limited: three wrong passwords lock the form for five minutes and trigger a Telegram notification to the admin.
