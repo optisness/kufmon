@@ -247,10 +247,42 @@ function renderLastEventCell(event: { eventType: string; createdAt: string | Dat
 }
 
 function renderHistorySummaryHtml(summary: string) {
-  const escaped = escapeHtml(summary);
-  return escaped
-    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noreferrer noopener">$1</a>')
-    .replace(/\n/g, "<br />");
+  const lines = String(summary ?? "").split(/\r?\n/);
+  const parts: string[] = [];
+
+  for (const line of lines) {
+    const photoMatch = line.match(/^Все фото:\s*(.+)$/);
+
+    if (photoMatch) {
+      const urls = photoMatch[1]
+        .split(/\s*,\s*/)
+        .map((url) => url.trim())
+        .filter(Boolean);
+
+      if (urls.length > 0) {
+        parts.push(
+          `<div style="margin-top:8px;">` +
+            `<div style="font-size:13px; color:#6b7280; margin-bottom:6px;">Все фото</div>` +
+            `<div style="display:flex; flex-wrap:wrap; gap:8px;">` +
+              urls.map((url) =>
+                `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer noopener" style="display:inline-flex; width:96px; height:96px; overflow:hidden; border-radius:10px; border:1px solid #d1d5db; background:#f3f4f6;">` +
+                  `<img src="${escapeHtml(url)}" alt="Фото объявления" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block;" />` +
+                `</a>`,
+              ).join("") +
+            `</div>` +
+          `</div>`,
+        );
+      }
+
+      continue;
+    }
+
+    const escapedLine = escapeHtml(line)
+      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noreferrer noopener">$1</a>');
+    parts.push(`<div>${escapedLine}</div>`);
+  }
+
+  return parts.join("");
 }
 
 function compareLastEventDates(
@@ -1561,7 +1593,7 @@ app.get("/history/:id", async (req: any, reply) => {
   for (const event of history) {
     html += "<div style='margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #ddd;'>";
     html += "<div><strong>" + escapeHtml(event.eventType) + "</strong> — " + new Date(event.createdAt).toLocaleString() + "</div>";
-    html += "<div style='margin:8px 0 0; white-space:pre-wrap; font-family:inherit; line-height:1.45;'>" + renderHistorySummaryHtml(formatEventSummary(event.eventType, event.changesJson)) + "</div>";
+    html += "<div style='margin:8px 0 0; font-family:inherit; line-height:1.45;'>" + renderHistorySummaryHtml(formatEventSummary(event.eventType, event.changesJson)) + "</div>";
     html += "</div>";
   }
   
