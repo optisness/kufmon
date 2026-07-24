@@ -30,6 +30,7 @@ import {
   persistUserBillingState,
 } from "./billing.js";
 import { formatTelegramBatchMessage } from "./telegramMessage.js";
+import { splitTelegramMessageChunks } from "./telegramMessage.js";
 import { buildTelegramListingUrl } from "./telegramMessage.js";
 import {
   buildPaginationMeta,
@@ -283,10 +284,6 @@ function buildOptionsMarkup(options: Array<{ value: string; label: string }>, se
       return `<option value="${escapeHtml(option.value)}"${selected}>${escapeHtml(option.label)}</option>`;
     })
     .join("");
-}
-
-function splitMessageChunks(text: string, chunkSize = 3500) {
-  return text.match(new RegExp(`[\\s\\S]{1,${chunkSize}}`, "g")) || [];
 }
 
 function sortUsers(users: any[]) {
@@ -1448,12 +1445,12 @@ app.post("/subscriptions", async (req: any, reply) => {
       const cutoff = new Date(Date.now() - subscription.intervalMinutes * 60_000);
       const recentListings = await prisma.listing.findMany({
         where: {
-          lastSeenAt: { gte: cutoff },
+          firstSeenAt: { gte: cutoff },
           isActive: true,
           source: { in: ["kufar.by", "kufar"] },
         },
         orderBy: [
-          { lastSeenAt: "desc" },
+          { firstSeenAt: "desc" },
           { createdAt: "desc" },
         ],
         take: 50,
@@ -1469,7 +1466,7 @@ app.post("/subscriptions", async (req: any, reply) => {
       );
 
       if (matchingListings.length > 0) {
-        const chunks = splitMessageChunks(formatTelegramBatchMessage(
+        const chunks = splitTelegramMessageChunks(formatTelegramBatchMessage(
           matchingListings.map((listing) => ({
             eventType: "NEW" as const,
             category: listing.category ?? null,
@@ -1482,7 +1479,7 @@ app.post("/subscriptions", async (req: any, reply) => {
         ));
 
         for (const chunk of chunks) {
-          await sendTelegram(chunk, user.telegramChatId);
+          await sendTelegram(chunk, user.telegramChatId, { parseMode: "HTML" });
         }
       }
     }

@@ -189,3 +189,67 @@ export function formatTelegramBatchMessage(items: ListingEventAlert[]) {
 
   return [subscriptionHeader, sections].filter(Boolean).join("\n\n");
 }
+
+export function splitTelegramMessageChunks(text: string, chunkSize = 3500) {
+  const source = String(text ?? "").trim();
+  if (!source) return [];
+
+  const chunks: string[] = [];
+  const paragraphs = source.split(/\n{2,}/);
+
+  let current = "";
+
+  const pushCurrent = () => {
+    if (current) {
+      chunks.push(current);
+      current = "";
+    }
+  };
+
+  for (const paragraph of paragraphs) {
+    if (!paragraph) continue;
+
+    const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+    if (candidate.length <= chunkSize) {
+      current = candidate;
+      continue;
+    }
+
+    pushCurrent();
+
+    if (paragraph.length <= chunkSize) {
+      current = paragraph;
+      continue;
+    }
+
+    const lines = paragraph.split(/\n/);
+    let lineChunk = "";
+
+    for (const line of lines) {
+      const lineCandidate = lineChunk ? `${lineChunk}\n${line}` : line;
+      if (lineCandidate.length <= chunkSize) {
+        lineChunk = lineCandidate;
+        continue;
+      }
+
+      if (lineChunk) {
+        chunks.push(lineChunk);
+        lineChunk = "";
+      }
+
+      if (line.length <= chunkSize) {
+        lineChunk = line;
+        continue;
+      }
+
+      for (let i = 0; i < line.length; i += chunkSize) {
+        chunks.push(line.slice(i, i + chunkSize));
+      }
+    }
+
+    current = lineChunk;
+  }
+
+  pushCurrent();
+  return chunks;
+}

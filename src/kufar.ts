@@ -3,7 +3,7 @@ import { sendTelegram } from "./telegram.js";
 import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
 import { matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
-import { formatTelegramBatchMessage, type TelegramEventType } from "./telegramMessage.js";
+import { formatTelegramBatchMessage, splitTelegramMessageChunks, type TelegramEventType } from "./telegramMessage.js";
 import { extractListingDetails, fetchKufarItem } from "./kufarItem.js";
 import {
   buildChangedEventPayload,
@@ -658,7 +658,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     if (flattened.length === 0) continue;
 
     const text = formatTelegramBatchMessage(flattened);
-    const chunks = text.match(/[\s\S]{1,3500}/g) || [];
+    const chunks = splitTelegramMessageChunks(text);
 
     for (const chunk of chunks) {
       const ok = await sendTelegram(chunk, user.telegramChatId, { parseMode: "HTML" });

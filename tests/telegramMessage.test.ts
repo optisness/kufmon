@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTelegramListingUrl, formatTelegramBatchMessage } from "../src/telegramMessage.js";
+import { buildTelegramListingUrl, formatTelegramBatchMessage, splitTelegramMessageChunks } from "../src/telegramMessage.js";
 
 describe("telegramMessage", () => {
   it("builds a canonical Kufar url from a bare listing url", () => {
@@ -74,5 +74,29 @@ describe("telegramMessage", () => {
     expect(message).toContain("Комнат: 2к");
     expect(message).toContain("Изменено: цена <b>95 000 $</b> → <b>90 000 $</b>, описание добавлено, фото добавлено");
     expect(message).toContain("https://re.kufar.by/vi/grodno/kupit/kvartiru/1059448809");
+  });
+
+  it("splits telegram html messages on block boundaries", () => {
+    const text = [
+      "Подписка: test",
+      "",
+      "🆕 Новые",
+      "",
+      "🏢 <b>First card</b>",
+      "Цена: <b>44 000 $</b>",
+      "Комнат: 2к",
+      "Ссылка: <a href=\"https://re.kufar.by/vi/grodno/kupit/kvartiru/1\">Куфар</a>",
+      "",
+      "🏢 <b>Second card</b>",
+      "Цена: <b>55 000 $</b>",
+      "Комнат: 3к",
+      "Ссылка: <a href=\"https://re.kufar.by/vi/grodno/kupit/kvartiru/2\">Куфар</a>",
+    ].join("\n");
+
+    const chunks = splitTelegramMessageChunks(text, 140);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.join("\n\n")).toContain("<b>First card</b>");
+    expect(chunks.join("\n\n")).toContain("<b>Second card</b>");
   });
 });
