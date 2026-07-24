@@ -31,7 +31,7 @@ Current implementation notes:
 - The history page formats timestamps in Minsk time (`Europe/Minsk`) and renders `NEW` event photos as a thumbnail gallery with a lightbox and arrow navigation.
 - Address extraction for `NEW` history events uses the structured `address` field from the Kufar listing response, so the history view can show it as a separate line without HTML parsing.
 - Full descriptions are taken from the Kufar listing page HTML `itemprop="description"` block, which preserves the longer text shown on the detail page.
-- Telegram delivery attempts are stored in `TelegramDeliveryLog` and the admin UI exposes them on `/ui/telegram-deliveries` with timestamp, user label, chat ID, purpose, result, status code, and error text.
+- Telegram delivery attempts are stored in `TelegramDeliveryLog` and the admin UI exposes them on `/ui/telegram-deliveries` with timestamp, user label, chat ID, purpose, result, status code, and error text. The page supports filtering by user and by delivery result.
 - `/health` is public so Render can probe it without a session cookie. In the browser it renders a status page with navigation; JSON is still available via `?format=json` or an `application/json` accept header.
 - `/metrics` and `/kufar` remain protected debug endpoints and are not shown in the main navigation. `metrics` returns uptime plus a few counters; `kufar` returns the raw Kufar search payload.
 - Admin login attempts are rate-limited: three wrong passwords lock the form for five minutes and trigger a Telegram notification to the admin.

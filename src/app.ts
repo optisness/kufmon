@@ -658,16 +658,55 @@ function renderHealthPage(options: {
 
 function renderTelegramDeliveriesPage(options: {
   deliveries: any[];
+  users: any[];
   pagination: ReturnType<typeof buildPaginationMeta>;
   query: Record<string, unknown>;
+  filters: { userId: string; result: "all" | "ok" | "fail" };
 }) {
+  const userOptions = [
+    `<option value="">Все пользователи</option>`,
+    ...options.users.map((user) => {
+      const label = getUserDisplayName(user);
+      return `<option value="${escapeHtml(user.id)}"${options.filters.userId === user.id ? " selected" : ""}>${escapeHtml(label)}</option>`;
+    }),
+  ].join("");
+
+  const resultOptions = [
+    { value: "all", label: "Все результаты" },
+    { value: "ok", label: "OK" },
+    { value: "fail", label: "FAIL" },
+  ].map((option) => `<option value="${option.value}"${options.filters.result === option.value ? " selected" : ""}>${option.label}</option>`).join("");
+
   return renderAdminLayout({
     title: "Telegram",
     activePath: "/ui/telegram-deliveries",
     body: `
     <div class="section">
       <h2>Telegram</h2>
-      <p>Журнал отправленных сообщений: пользователь, время, назначение и результат доставки.</p>
+      <form method="GET" action="/ui/telegram-deliveries" class="compact-form filters-form" style="margin-bottom:14px;">
+        <div class="form-row" style="grid-template-columns: 1.2fr 0.8fr auto auto; align-items:end;">
+          <div class="form-group">
+            <label>Пользователь</label>
+            <select name="userId">
+              ${userOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Результат</label>
+            <select name="result">
+              ${resultOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>&nbsp;</label>
+            <button type="submit">Фильтр</button>
+          </div>
+          <div class="form-group">
+            <label>&nbsp;</label>
+            <a href="/ui/telegram-deliveries" style="display:inline-flex; align-items:center; justify-content:center; padding:8px 14px; background:#f3f4f6; color:#333; text-decoration:none; border-radius:4px; border:1px solid #ddd;">Сбросить</a>
+          </div>
+        </div>
+      </form>
       <table data-sort-table="telegram-deliveries">
         <thead>
           <tr>
@@ -705,6 +744,14 @@ function renderTelegramDeliveriesPage(options: {
     </div>
     `,
   });
+}
+
+function parseTelegramDeliveryFilters(query: Record<string, unknown>): { userId: string; result: "all" | "ok" | "fail" } {
+  const userId = typeof query.userId === "string" ? query.userId.trim() : "";
+  const resultValue = typeof query.result === "string" ? query.result.trim() : "all";
+  const result = resultValue === "ok" || resultValue === "fail" ? resultValue : "all";
+
+  return { userId, result };
 }
 
 function renderApplicationFormPage() {
@@ -1414,11 +1461,18 @@ app.get("/ui/listings", async (req: any, reply) => {
 app.get("/ui/telegram-deliveries", async (req: any, reply) => {
   await cleanupStaleListings();
   const page = parsePositiveInt(req.query?.page, 1);
-  const totalItems = await prisma.telegramDeliveryLog.count();
+  const filters = parseTelegramDeliveryFilters(req.query ?? {});
+  const where = {
+    ...(filters.userId ? { userId: filters.userId } : {}),
+    ...(filters.result === "ok" ? { success: true } : filters.result === "fail" ? { success: false } : {}),
+  };
+  const users = sortUsers(await prisma.user.findMany());
+  const totalItems = await prisma.telegramDeliveryLog.count({ where });
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
   const deliveries = await prisma.telegramDeliveryLog.findMany({
     skip: pagination.offset,
     take: pagination.pageSize,
+    where,
     orderBy: [
       { createdAt: "desc" },
       { id: "desc" },
@@ -1435,8 +1489,10 @@ app.get("/ui/telegram-deliveries", async (req: any, reply) => {
 
   reply.type("text/html; charset=utf-8").send(renderTelegramDeliveriesPage({
     deliveries,
+    users,
     pagination,
     query: req.query ?? {},
+    filters,
   }));
 });
 
