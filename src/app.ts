@@ -113,6 +113,49 @@ function parseOptionalNumber(value: any) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseListingsFilterState(query: Record<string, unknown>) {
+  const seller = query.seller === "private" || query.seller === "company" ? query.seller : "all";
+  const status = query.status === "active" || query.status === "inactive" ? query.status : "all";
+
+  return {
+    seller,
+    status,
+    priceMin: parseOptionalNumber(query.priceMin),
+    priceMax: parseOptionalNumber(query.priceMax),
+  };
+}
+
+function buildListingsWhere(filters: ReturnType<typeof parseListingsFilterState>, cutoff: Date) {
+  const andConditions: any[] = [
+    {
+      OR: [
+        { isActive: true },
+        { lastSeenAt: { gte: cutoff } },
+      ],
+    },
+  ];
+
+  if (filters.seller === "private" || filters.seller === "company") {
+    andConditions.push({ sellerType: filters.seller });
+  }
+
+  if (filters.status === "active") {
+    andConditions.push({ isActive: true });
+  } else if (filters.status === "inactive") {
+    andConditions.push({ isActive: false });
+  }
+
+  if (filters.priceMin != null) {
+    andConditions.push({ price: { gte: filters.priceMin } });
+  }
+
+  if (filters.priceMax != null) {
+    andConditions.push({ price: { lte: filters.priceMax } });
+  }
+
+  return andConditions.length === 1 ? andConditions[0] : { AND: andConditions };
+}
+
 function renderPaginationControls(options: {
   basePath: string;
   query: Record<string, unknown>;
@@ -366,6 +409,12 @@ function renderAdminLayout(options: {
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     .compact-form { display: grid; gap: 10px; }
     .compact-form .form-group { margin-bottom: 0; }
+    .filters-form { gap: 8px; }
+    .filters-form .form-row { gap: 10px; }
+    .filters-form .form-group { margin-bottom: 0; }
+    .filters-form label { margin-bottom: 4px; font-size: 12px; }
+    .filters-form input, .filters-form select { padding: 6px 8px; font-size: 13px; }
+    .filters-form button, .filters-form a { padding: 8px 14px; font-size: 13px; }
     .rooms-options { display:flex; gap:12px; flex-wrap:wrap; padding-top:6px; }
     .rooms-options label { display:flex; align-items:center; gap:6px; font-weight:normal; margin-bottom:0; }
     .page-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
@@ -925,6 +974,7 @@ function renderListingsPage(options: {
   latestEventByListingId: Map<string, { eventType: string; createdAt: Date }>;
   pagination: ReturnType<typeof buildPaginationMeta>;
   query: Record<string, unknown>;
+  filters: ReturnType<typeof parseListingsFilterState>;
   currentSort: { key: string; direction: "asc" | "desc" } | null;
 }) {
   return renderAdminLayout({
@@ -933,6 +983,46 @@ function renderListingsPage(options: {
     body: `
     <div class="section">
       <h2>Объявления</h2>
+      <form method="GET" action="/ui/listings" class="compact-form filters-form" style="margin-bottom:14px;">
+        ${options.currentSort ? `
+          <input type="hidden" name="sort" value="${escapeHtml(options.currentSort.key)}" />
+          <input type="hidden" name="dir" value="${escapeHtml(options.currentSort.direction)}" />
+        ` : ""}
+        <div class="form-row" style="grid-template-columns: 0.9fr 0.9fr 0.8fr 0.8fr 0.75fr auto; align-items:end;">
+          <div class="form-group">
+            <label>Продавец</label>
+            <select name="seller">
+              <option value="all"${options.filters.seller === "all" ? " selected" : ""}>Все</option>
+              <option value="company"${options.filters.seller === "company" ? " selected" : ""}>Агентство</option>
+              <option value="private"${options.filters.seller === "private" ? " selected" : ""}>Физлица</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Статус</label>
+            <select name="status">
+              <option value="all"${options.filters.status === "all" ? " selected" : ""}>Все</option>
+              <option value="active"${options.filters.status === "active" ? " selected" : ""}>Активные</option>
+              <option value="inactive"${options.filters.status === "inactive" ? " selected" : ""}>Неактивные</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Цена от</label>
+            <input name="priceMin" type="number" value="${escapeHtml(options.filters.priceMin ?? "")}" />
+          </div>
+          <div class="form-group">
+            <label>Цена до</label>
+            <input name="priceMax" type="number" value="${escapeHtml(options.filters.priceMax ?? "")}" />
+          </div>
+          <div class="form-group">
+            <label>&nbsp;</label>
+            <button type="submit">Фильтр</button>
+          </div>
+          <div class="form-group">
+            <label>&nbsp;</label>
+            <a href="/ui/listings" style="display:inline-flex; align-items:center; justify-content:center; padding:8px 14px; background:#f3f4f6; color:#333; text-decoration:none; border-radius:4px; border:1px solid #ddd;">Сбросить</a>
+          </div>
+        </div>
+      </form>
       <table data-sort-table="listings">
         <thead>
           <tr>
@@ -1204,22 +1294,11 @@ app.get("/ui/listings", async (req: any, reply) => {
   await cleanupStaleListings();
   const page = parsePositiveInt(req.query?.page, 1);
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const totalItems = await prisma.listing.count({
-    where: {
-      OR: [
-        { isActive: true },
-        { lastSeenAt: { gte: cutoff } },
-      ],
-    },
-  });
+  const filters = parseListingsFilterState(req.query ?? {});
+  const listingWhere = buildListingsWhere(filters, cutoff);
+  const totalItems = await prisma.listing.count({ where: listingWhere });
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
   const sortState = parseAdminSortState(req.query ?? {}, ["title", "category", "seller", "price", "rooms", "missingCount", "lastEventAt", "active"]);
-  const listingWhere = {
-    OR: [
-      { isActive: true },
-      { lastSeenAt: { gte: cutoff } },
-    ],
-  };
   const shouldSortByLastEvent = sortState?.key === "lastEventAt";
   const allListings = shouldSortByLastEvent
     ? await prisma.listing.findMany({
@@ -1278,6 +1357,7 @@ app.get("/ui/listings", async (req: any, reply) => {
     latestEventByListingId,
     pagination,
     query: req.query ?? {},
+    filters,
     currentSort: sortState,
   }));
 });
