@@ -294,7 +294,7 @@ function getMatchingSubscriptionNames(
         return false;
       }
 
-      if (eventType === "CHANGED" && String(subscription.notificationMode ?? "new_and_changed") === "new_only") {
+      if (eventType !== "NEW" && String(subscription.notificationMode ?? "new_and_changed") === "new_only") {
         return false;
       }
 

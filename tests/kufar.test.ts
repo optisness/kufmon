@@ -569,6 +569,46 @@ describe('Kufar sync', () => {
     expect(metrics.alertsSent).toBe(0);
   });
 
+  it('suppresses removed alerts when a subscription is set to new-only notifications', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'user-1', telegramChatId: '123' },
+    ]);
+    prismaMock.subscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-1',
+        name: 'Minsk 2 rooms',
+        userId: 'user-1',
+        maxPrice: 500,
+        rooms: [2],
+        enabled: true,
+        notificationMode: 'new_only',
+      },
+    ]);
+    prismaMock.listing.findMany.mockResolvedValueOnce([
+      { id: '1', price: 600, currency: 'USD', sourcePrice: 60000, contentHash: 'old', description: 'Stable description', imageUrl: 'https://rms.kufar.by/v1/gallery/adim1/example.jpg', rooms: 2, isActive: true, category: '1010', title: 'Old title', url: 'https://re.kufar.by/vi/1', location: null, missingCount: 2 },
+    ]);
+    prismaMock.listing.update.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
+    sendTelegramMock.mockResolvedValue(true);
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          ads: [],
+        }),
+      },
+    ]);
+
+    const result = await saveKufarAds();
+
+    expect(result).toBe(0);
+    expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(1);
+    expect(sendTelegramMock).not.toHaveBeenCalled();
+    expect(metrics.deactivations).toBe(1);
+    expect(metrics.alertsSent).toBe(0);
+  });
+
   it('ignores exchange-rate-only changes when the source price is unchanged', async () => {
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'user-1', telegramChatId: '123' },
