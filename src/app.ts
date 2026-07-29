@@ -443,6 +443,10 @@ function renderAdminLayout(options: {
     .pagination-current { font-weight:bold; color:#333; }
     .listing-row.inactive td { background:#ffe9e9; }
     .listing-row.inactive:hover td { background:#ffdede; }
+    [data-listings-table] { table-layout: fixed; }
+    .listing-title-column { width: 34%; }
+    .listing-title-cell { display:flex; align-items:center; gap:8px; min-width:0; }
+    .listing-title-link { color:#007bff; text-decoration:none; font-weight:600; min-width:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; white-space:normal; word-break:break-word; line-height:1.25; }
     .attempt-column { width:64px; text-align:center; }
     .center-column, th.center-column { text-align:center; }
     .event-column { white-space:nowrap; }
@@ -1242,11 +1246,11 @@ function renderListingsPage(options: {
           </div>
         </div>
       </form>
-      <table data-sort-table="listings">
+      <table data-sort-table="listings" data-listings-table="true">
         <thead>
           <tr>
             <th>№</th>
-            ${renderSortableHeader("Название", "title", "string", options.currentSort)}
+            ${renderSortableHeader("Название", "title", "string", options.currentSort, "listing-title-column")}
             ${renderSortableHeader("Кат", "category", "string", options.currentSort)}
             ${renderSortableHeader("Тип", "seller", "string", options.currentSort)}
             <th>Продавец</th>
@@ -1263,12 +1267,12 @@ function renderListingsPage(options: {
           ${options.listings.map((l, index) => `
             <tr class="${l.isActive ? "" : "listing-row inactive"}">
               <td>${getDisplayRowNumber(options.pagination, index)}</td>
-              <td>
-                <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+              <td class="listing-title-column">
+                <div class="listing-title-cell">
                   <a href="${escapeHtml(buildTelegramListingUrl({ url: l.url, category: l.category ?? null }))}" target="_blank" title="Открыть объявление" style="display:inline-flex; align-items:center; flex:0 0 auto;">
                     <img src="https://pbs.twimg.com/profile_images/829644122202001408/wkcfnIa9.jpg" alt="Kufar" width="18" height="18" style="display:block; object-fit:cover; object-position:center; border-radius:4px;" />
                   </a>
-                  <a href="/history/${l.id}" style="color:#007bff; text-decoration:none; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(l.title)}</a>
+                  <a href="/history/${l.id}" class="listing-title-link">${escapeHtml(l.title)}</a>
                 </div>
               </td>
               <td><span class="compact-badge category">${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</span></td>

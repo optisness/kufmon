@@ -26,6 +26,7 @@ Current implementation notes:
 - The users page also supports inline editing of the user name, Telegram chat ID, tariff, and payment end date.
 - In the subscriptions table, the active-state toggle is shown as `Enabled` or `Disabled` so the current state is unambiguous.
 - The listings page sorts price using the normalized numeric value, so the `"$"` prefix shown in the table does not break sorting.
+- The listings table keeps long titles readable by wrapping them into a compact multi-line cell instead of stretching the layout.
 - The listings page also shows the `missingCount` column, which represents consecutive failed sync attempts before a listing becomes `REMOVED`.
 - The listings page now also shows and sorts by the timestamp of the latest `NEW` / `CHANGED` / `REMOVED` event, so operators can quickly see how recently a listing changed.
 - The `NEW` history payload includes the normalized snapshot plus the full address, seller display name, seller phone, full description, and all photo URLs, but those extra fields are only used in the admin history view.
