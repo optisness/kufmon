@@ -358,6 +358,25 @@ function normalizeSellerType(value: unknown): "company" | "private" | null {
   return null;
 }
 
+function getMinskDayRange(reference = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Minsk",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(reference);
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+
+  const start = new Date(`${year}-${month}-${day}T00:00:00+03:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  return { start, end };
+}
+
 export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]) {
   const users = await prisma.user.findMany();
   const subscriptions = await prisma.subscription.findMany({
@@ -846,6 +865,69 @@ export async function backfillKufarSellerInfo() {
       data: nextData,
     });
     updated += 1;
+  }
+
+  return {
+    scanned,
+    matched,
+    updated,
+  };
+}
+
+export async function backfillKufarSellerPhonesForToday() {
+  const { start, end } = getMinskDayRange();
+
+  const existingListings = await prisma.listing.findMany({
+    where: {
+      isActive: true,
+      source: { in: [KUFAR_SOURCE, "kufar"] },
+      sellerPhone: null,
+      events: {
+        some: {
+          createdAt: {
+            gte: start,
+            lt: end,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      sellerPhone: true,
+      events: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  let scanned = 0;
+  let matched = 0;
+  let updated = 0;
+
+  for (const listing of existingListings) {
+    scanned += 1;
+    matched += 1;
+
+    try {
+      const phone = await fetchKufarPhone(listing.id);
+      if (!phone || phone === listing.sellerPhone) {
+        continue;
+      }
+
+      await prisma.listing.update({
+        where: { id: listing.id },
+        data: {
+          sellerPhone: phone,
+        },
+      });
+      updated += 1;
+    } catch (error) {
+      logger.warn({ id: listing.id, error }, "Failed to backfill seller phone for today's active listing");
+    }
   }
 
   return {

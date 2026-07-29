@@ -1,7 +1,7 @@
 ﻿import Fastify from "fastify";
 import fastifyFormbody from "@fastify/formbody";
 import { prisma } from "./db.js";
-import { fetchKufarMap, saveKufarAds, KUFAR_CATEGORIES } from "./kufar.js";
+import { backfillKufarSellerPhonesForToday, fetchKufarMap, saveKufarAds, KUFAR_CATEGORIES } from "./kufar.js";
 import { startCron } from "./cron.js";
 import { sendTrackedTelegram } from "./telegram.js";
 import { logger } from "./logger.js";
@@ -406,6 +406,8 @@ function renderAdminLayout(options: {
     .nav { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .nav a { padding: 8px 12px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; font-size: 14px; }
     .nav a:hover { background: #0056b3; }
+    .btn-primary { background: #007bff; color: #fff; }
+    .btn-primary:hover { background: #0056b3; }
     .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     h2 { color: #333; margin-top: 0; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
     h3 { color: #555; margin-top: 20px; }
@@ -649,6 +651,7 @@ function renderLandingPage(options: {
 function renderHealthPage(options: {
   status: Awaited<ReturnType<typeof getServiceStatus>>;
   authenticated?: boolean;
+  notice?: string | null;
 }) {
   const statusLabel = options.status.db ? "OK" : "Error";
   const telegramLabel = options.status.telegram ? "Configured" : "Not configured";
@@ -661,6 +664,7 @@ function renderHealthPage(options: {
     <div class="section">
       <h2>Состояние сервиса</h2>
       <p>Публичная проверка для Render и удобная ручная диагностика.</p>
+      ${options.notice ? `<div style="margin-top:14px; padding:12px 14px; border-radius:10px; background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;">${escapeHtml(options.notice)}</div>` : ""}
       <div class="page-grid" style="margin-top:16px;">
         <div class="page-card">
           <h3>Сервис</h3>
@@ -683,6 +687,9 @@ function renderHealthPage(options: {
           <p><strong>${Math.floor(options.status.uptime)}s</strong></p>
         </div>
       </div>
+      <form method="GET" action="/kufar/backfill-phones-today" style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
+        <button type="submit" class="btn-primary" style="display:inline-flex; align-items:center; justify-content:center;">Обновить телефоны за сегодня</button>
+      </form>
       <div style="margin-top:16px; color:#666;">
         <p><strong>Public:</strong> <code>/health</code></p>
         <p><strong>Protected debug:</strong> <code>/metrics</code>, <code>/kufar</code>, <code>/sync</code></p>
@@ -1337,6 +1344,7 @@ app.get("/health", async (req: any, reply) => {
   reply.type("text/html; charset=utf-8").send(renderHealthPage({
     status,
     authenticated: isAdminAuthenticated(req.headers.cookie),
+    notice: typeof req.query?.notice === "string" ? req.query.notice : null,
   }));
 });
 
@@ -1374,6 +1382,12 @@ app.get("/sync", async (req: any) => {
   return {
     synced: count,
   };
+});
+
+app.get("/kufar/backfill-phones-today", async (_req: any, reply) => {
+  const result = await backfillKufarSellerPhonesForToday();
+  const notice = `Обновление телефонов завершено: найдено ${result.matched}, обновлено ${result.updated}.`;
+  reply.redirect(`/health?notice=${encodeURIComponent(notice)}`);
 });
 
 app.post("/login", async (req: any, reply) => {

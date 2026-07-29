@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Partially implemented (service provides a minimal set of endpoints)
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-29
 
 ---
 
@@ -36,6 +36,7 @@ Current implementation notes:
 - Telegram delivery attempts are stored in `TelegramDeliveryLog` and the admin UI exposes them on `/ui/telegram-deliveries` with timestamp, user label, subscription name, chat ID, purpose, result, status code, and error text. The page supports filtering by user and by delivery result.
 - `/health` is public so Render can probe it without a session cookie. In the browser it renders a status page with navigation; JSON is still available via `?format=json` or an `application/json` accept header.
 - `/metrics` and `/kufar` remain protected debug endpoints and are not shown in the main navigation. `metrics` returns uptime plus a few counters; `kufar` returns the raw Kufar search payload.
+- `/kufar/backfill-phones-today` is a protected operator endpoint that refreshes seller phone numbers for active Kufar listings whose latest event happened today and whose phone is still missing. The Health page exposes a one-click button for that maintenance task.
 - Admin login attempts are rate-limited: three wrong passwords lock the form for five minutes and trigger a Telegram notification to the admin.
 
 Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.

@@ -38,6 +38,7 @@ let fetchKufarMap: any;
 let saveKufarAds: any;
 let backfillKufarSourcePrices: any;
 let backfillKufarSellerInfo: any;
+let backfillKufarSellerPhonesForToday: any;
 let buildKufarSearchUrl: any;
 
 beforeAll(async () => {
@@ -46,6 +47,7 @@ beforeAll(async () => {
   saveKufarAds = module.saveKufarAds;
   backfillKufarSourcePrices = module.backfillKufarSourcePrices;
   backfillKufarSellerInfo = module.backfillKufarSellerInfo;
+  backfillKufarSellerPhonesForToday = module.backfillKufarSellerPhonesForToday;
   buildKufarSearchUrl = module.buildKufarSearchUrl;
 });
 
@@ -215,6 +217,40 @@ describe('Kufar sync', () => {
       data: {
         sellerName: "Агентство недвижимости ''Юриэлт'' г.Гродно, Наталия",
         sellerPhone: '375298187308',
+      },
+    });
+  });
+
+  it('backfills phones for active listings whose latest event happened today', async () => {
+    prismaMock.listing.findMany.mockResolvedValue([
+      {
+        id: '1',
+        sellerPhone: null,
+        events: [{ createdAt: new Date() }],
+      },
+    ]);
+    prismaMock.listing.update.mockResolvedValue({ id: '1' });
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291234567',
+        }),
+      },
+    ]);
+
+    const result = await backfillKufarSellerPhonesForToday();
+
+    expect(result).toEqual({
+      scanned: 1,
+      matched: 1,
+      updated: 1,
+    });
+    expect(prismaMock.listing.update).toHaveBeenCalledWith({
+      where: { id: '1' },
+      data: {
+        sellerPhone: '375291234567',
       },
     });
   });
