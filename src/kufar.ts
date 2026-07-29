@@ -881,7 +881,6 @@ export async function backfillKufarSellerPhonesForToday() {
     where: {
       isActive: true,
       source: { in: [KUFAR_SOURCE, "kufar"] },
-      sellerPhone: null,
       events: {
         some: {
           createdAt: {
@@ -914,7 +913,8 @@ export async function backfillKufarSellerPhonesForToday() {
 
     try {
       const phone = await fetchKufarPhone(listing.id);
-      if (!phone || phone === listing.sellerPhone) {
+      const currentPhone = String(listing.sellerPhone ?? "").trim();
+      if (!phone || phone === currentPhone) {
         continue;
       }
 

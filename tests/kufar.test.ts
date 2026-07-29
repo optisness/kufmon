@@ -255,6 +255,36 @@ describe('Kufar sync', () => {
     });
   });
 
+  it('backfills phones even when the stored phone is an empty string', async () => {
+    prismaMock.listing.findMany.mockResolvedValue([
+      {
+        id: '2',
+        sellerPhone: '',
+        events: [{ createdAt: new Date() }],
+      },
+    ]);
+    prismaMock.listing.update.mockResolvedValue({ id: '2' });
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375299998877',
+        }),
+      },
+    ]);
+
+    const result = await backfillKufarSellerPhonesForToday();
+
+    expect(result.updated).toBe(1);
+    expect(prismaMock.listing.update).toHaveBeenCalledWith({
+      where: { id: '2' },
+      data: {
+        sellerPhone: '375299998877',
+      },
+    });
+  });
+
   it('alerts the admin when the Kufar response shape changes', async () => {
     process.env.ADMIN_TELEGRAM_CHAT_ID = '123';
     sendTelegramMock.mockResolvedValue(true);

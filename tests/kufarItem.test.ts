@@ -93,6 +93,17 @@ describe('parseListingData', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it('normalizes multiple phone numbers returned by Kufar', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ phone: '375336195495,375336703483' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchKufarPhone('1078366830')).resolves.toBe('375336195495, 375336703483');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('extracts seller name and contact person from the item html json', () => {
     const html = `
       <script>

@@ -247,6 +247,17 @@ function formatSellerLabel(value: unknown) {
     .trim() || "—";
 }
 
+function formatPhoneList(value: unknown) {
+  const phones = String(value ?? "")
+    .split(/\s*,\s*/)
+    .map((phone) => phone.trim())
+    .filter(Boolean);
+
+  if (phones.length === 0) return "—";
+
+  return phones.map((phone) => escapeHtml(phone)).join("<br />");
+}
+
 function formatDateTime(value: string | Date | null | undefined) {
   if (!value) return "—";
   const date = new Date(value);
@@ -446,6 +457,7 @@ function renderAdminLayout(options: {
     .page-card h3 { margin-top:0; }
     .page-card a { color:#007bff; text-decoration:none; }
     .page-card a:hover { text-decoration:underline; }
+    .phone-cell { font-size: 12px; line-height: 1.35; white-space: normal; }
     .pagination { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid #e6e6e6; flex-wrap:wrap; }
     .pagination-summary { color:#666; font-size:14px; }
     .pagination-links { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
@@ -1284,7 +1296,7 @@ function renderListingsPage(options: {
               <td><span class="compact-badge category">${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</span></td>
               <td><span class="compact-badge ${escapeHtml(l.sellerType === "company" ? "company" : l.sellerType === "private" ? "private" : "unknown")}">${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</span></td>
               <td>${escapeHtml(formatSellerLabel(l.sellerName))}</td>
-              <td>${escapeHtml(l.sellerPhone || "-")}</td>
+              <td class="phone-cell">${formatPhoneList(l.sellerPhone)}</td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td class="center-column">${l.rooms ?? "-"}</td>
               <td class="attempt-column">${escapeHtml(formatListingAttemptCount(l.missingCount))}</td>

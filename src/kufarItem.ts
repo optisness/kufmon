@@ -17,6 +17,20 @@ export async function fetchKufarItem(id: string) {
 export async function fetchKufarPhone(id: string) {
   const url = `https://api.kufar.by/search-api/v2/item/${id}/phone`;
 
+  function normalizePhoneList(value: unknown) {
+    const raw = String(value ?? "").trim();
+    if (!raw) return null;
+
+    const phones = raw
+      .split(/\s*,\s*/)
+      .map((phone) => phone.replace(/[^\d+]/g, ""))
+      .filter(Boolean);
+
+    if (phones.length === 0) return null;
+
+    return Array.from(new Set(phones)).join(", ");
+  }
+
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(url, {
       headers: {
@@ -32,8 +46,7 @@ export async function fetchKufarPhone(id: string) {
 
     if (res.ok) {
       const data = await res.json();
-      const phone = typeof data?.phone === "string" ? data.phone.trim() : "";
-      return phone.length > 0 ? phone : null;
+      return normalizePhoneList(data?.phone);
     }
 
     if (res.status === 404 || res.status === 403 || res.status === 429) {
