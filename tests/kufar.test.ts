@@ -247,6 +247,17 @@ describe('Kufar sync', () => {
       matched: 1,
       updated: 1,
     });
+    expect(prismaMock.listing.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          events: expect.objectContaining({
+            some: expect.objectContaining({
+              eventType: 'NEW',
+            }),
+          }),
+        }),
+      }),
+    );
     expect(prismaMock.listing.update).toHaveBeenCalledWith({
       where: { id: '1' },
       data: {
@@ -281,6 +292,36 @@ describe('Kufar sync', () => {
       where: { id: '2' },
       data: {
         sellerPhone: '375299998877',
+      },
+    });
+  });
+
+  it('rewrites the phone number even when it matches the stored value', async () => {
+    prismaMock.listing.findMany.mockResolvedValue([
+      {
+        id: '3',
+        sellerPhone: '375311112233',
+        events: [{ createdAt: new Date() }],
+      },
+    ]);
+    prismaMock.listing.update.mockResolvedValue({ id: '3' });
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375311112233',
+        }),
+      },
+    ]);
+
+    const result = await backfillKufarSellerPhonesForToday();
+
+    expect(result.updated).toBe(1);
+    expect(prismaMock.listing.update).toHaveBeenCalledWith({
+      where: { id: '3' },
+      data: {
+        sellerPhone: '375311112233',
       },
     });
   });

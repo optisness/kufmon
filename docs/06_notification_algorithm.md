@@ -261,7 +261,7 @@ The admin history view renders those photo URLs as a thumbnail gallery; clicking
 History timestamps in the admin view are shown in Minsk time (`Europe/Minsk`) so they match the rest of the admin tables.
 If the detailed item page does not return an address, the sync keeps the address from the search payload so the `NEW` history entry still shows it as a separate line.
 The full description is taken from the listing page HTML `itemprop="description"` block so the history keeps the longer text instead of the shortened card preview.
-The operator Health page includes a one-click backfill action that refreshes missing seller phone numbers for active Kufar listings whose latest event happened today.
+The operator Health page includes a one-click backfill action that starts a background job refreshing seller phone numbers for active Kufar `NEW` listings whose event date is today. If Kufar returns a phone, the stored value is rewritten even when it matches the previous one.
 
 ## NEW
 

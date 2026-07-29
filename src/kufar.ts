@@ -883,6 +883,7 @@ export async function backfillKufarSellerPhonesForToday() {
       source: { in: [KUFAR_SOURCE, "kufar"] },
       events: {
         some: {
+          eventType: "NEW",
           createdAt: {
             gte: start,
             lt: end,
@@ -913,8 +914,7 @@ export async function backfillKufarSellerPhonesForToday() {
 
     try {
       const phone = await fetchKufarPhone(listing.id);
-      const currentPhone = String(listing.sellerPhone ?? "").trim();
-      if (!phone || phone === currentPhone) {
+      if (!phone) {
         continue;
       }
 

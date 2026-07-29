@@ -1,17 +1,24 @@
 export async function fetchKufarItem(id: string) {
   const url = `https://re.kufar.by/vi/${id}`;
 
-  const res = await fetch(url, {
-    headers: {
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      accept: "text/html,application/xhtml+xml",
-      "accept-language": "ru-RU,ru;q=0.9",
-      "cache-control": "no-cache",
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
 
-  return await res.text();
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        accept: "text/html,application/xhtml+xml",
+        "accept-language": "ru-RU,ru;q=0.9",
+        "cache-control": "no-cache",
+      },
+      signal: controller.signal,
+    });
+    return await res.text();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function fetchKufarPhone(id: string) {
@@ -32,17 +39,36 @@ export async function fetchKufarPhone(id: string) {
   }
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url, {
-      headers: {
-        accept: "application/json, text/plain, */*",
-        "accept-language": "ru-RU,ru;q=0.9",
-        origin: "https://re.kufar.by",
-        referer: `https://re.kufar.by/vi/${id}`,
-        "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        "x-requested-with": "XMLHttpRequest",
-      },
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: {
+          accept: "application/json, text/plain, */*",
+          "accept-language": "ru-RU,ru;q=0.9",
+          origin: "https://re.kufar.by",
+          referer: `https://re.kufar.by/vi/${id}`,
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+          "x-requested-with": "XMLHttpRequest",
+        },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (attempt === 2) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return null;
+        }
+        throw error;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      continue;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (res.ok) {
       const data = await res.json();

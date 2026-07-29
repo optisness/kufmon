@@ -87,6 +87,7 @@ function compareStrings(a: string, b: string) {
 }
 
 const ADMIN_PAGE_SIZE = 50;
+let kufarPhoneBackfillRunning = false;
 
 const CATEGORY_LABEL_BY_VALUE: Record<string, string> = {
   [KUFAR_CATEGORIES.apartments]: "Квартира",
@@ -1397,9 +1398,24 @@ app.get("/sync", async (req: any) => {
 });
 
 app.get("/kufar/backfill-phones-today", async (_req: any, reply) => {
-  const result = await backfillKufarSellerPhonesForToday();
-  const notice = `Обновление телефонов завершено: найдено ${result.matched}, обновлено ${result.updated}.`;
-  reply.redirect(`/health?notice=${encodeURIComponent(notice)}`);
+  if (kufarPhoneBackfillRunning) {
+    reply.redirect("/health?notice=" + encodeURIComponent("Обновление телефонов уже запущено в фоне."));
+    return;
+  }
+
+  kufarPhoneBackfillRunning = true;
+  void (async () => {
+    try {
+      const result = await backfillKufarSellerPhonesForToday();
+      logger.info({ result }, "Kufar phone backfill finished");
+    } catch (error) {
+      logger.warn({ error }, "Kufar phone backfill failed");
+    } finally {
+      kufarPhoneBackfillRunning = false;
+    }
+  })();
+
+  reply.redirect("/health?notice=" + encodeURIComponent("Обновление телефонов запущено в фоне. Результат будет в логах."));
 });
 
 app.post("/login", async (req: any, reply) => {
