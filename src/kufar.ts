@@ -4,7 +4,7 @@ import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
 import { matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
 import { formatTelegramBatchMessage, splitTelegramMessageChunks, type TelegramEventType } from "./telegramMessage.js";
-import { extractListingDetails, fetchKufarItem, fetchKufarPhone } from "./kufarItem.js";
+import { extractListingDetails, extractSellerDetails, fetchKufarItem, fetchKufarPhone } from "./kufarItem.js";
 import {
   buildChangedEventPayload,
   buildContentHash,
@@ -778,6 +778,77 @@ export async function backfillKufarSourcePrices(options?: Parameters<typeof fetc
 
   return {
     scanned: existingListings.length,
+    matched,
+    updated,
+  };
+}
+
+export async function backfillKufarSellerInfo() {
+  const existingListings = await prisma.listing.findMany({
+    where: {
+      source: { in: [KUFAR_SOURCE, "kufar"] },
+    },
+    select: {
+      id: true,
+      sellerName: true,
+      sellerPhone: true,
+    },
+  });
+
+  let scanned = 0;
+  let matched = 0;
+  let updated = 0;
+
+  for (const listing of existingListings) {
+    scanned += 1;
+
+    const needsSellerName = !String(listing.sellerName ?? "").trim();
+    const needsPhone = !String(listing.sellerPhone ?? "").trim();
+
+    if (!needsSellerName && !needsPhone) {
+      continue;
+    }
+
+    matched += 1;
+
+    const nextData: { sellerName?: string | null; sellerPhone?: string | null } = {};
+
+    if (needsSellerName) {
+      try {
+        const html = await fetchKufarItem(listing.id);
+        const sellerDetails = extractSellerDetails(html);
+        if (sellerDetails.sellerName) {
+          nextData.sellerName = sellerDetails.sellerName;
+        }
+      } catch (error) {
+        logger.warn({ id: listing.id, error }, "Failed to backfill seller name");
+      }
+    }
+
+    if (needsPhone) {
+      try {
+        const phone = await fetchKufarPhone(listing.id);
+        if (phone) {
+          nextData.sellerPhone = phone;
+        }
+      } catch (error) {
+        logger.warn({ id: listing.id, error }, "Failed to backfill seller phone");
+      }
+    }
+
+    if (Object.keys(nextData).length === 0) {
+      continue;
+    }
+
+    await prisma.listing.update({
+      where: { id: listing.id },
+      data: nextData,
+    });
+    updated += 1;
+  }
+
+  return {
+    scanned,
     matched,
     updated,
   };

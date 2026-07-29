@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { extractListingDetails, fetchKufarPhone, parseListingData, parseSellerType } from '../src/kufarItem.js';
+import { extractListingDetails, extractSellerDetails, fetchKufarPhone, parseListingData, parseSellerType } from '../src/kufarItem.js';
 
 describe('parseListingData', () => {
   it('parses title, price, rooms and area from html', () => {
@@ -79,6 +79,31 @@ describe('parseListingData', () => {
         }),
       }),
     );
+  });
+
+  it('extracts seller name and contact person from the item html json', () => {
+    const html = `
+      <script>
+        window.__INITIAL_STATE__ = {
+          "account_parameters": [
+            {
+              "pl": "Имя",
+              "p": "name",
+              "v": "Агентство недвижимости ''Юриэлт'' г.Гродно"
+            },
+            {
+              "pl": "Контактное лицо",
+              "p": "contact_person",
+              "v": "Наталия"
+            }
+          ]
+        };
+      </script>
+    `;
+
+    expect(extractSellerDetails(html)).toEqual({
+      sellerName: "Агентство недвижимости ''Юриэлт'' г.Гродно, Наталия",
+    });
   });
 
   it('prefers the full html description block over short json text', () => {

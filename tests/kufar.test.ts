@@ -37,6 +37,7 @@ import { metrics } from '../src/metrics.js';
 let fetchKufarMap: any;
 let saveKufarAds: any;
 let backfillKufarSourcePrices: any;
+let backfillKufarSellerInfo: any;
 let buildKufarSearchUrl: any;
 
 beforeAll(async () => {
@@ -44,6 +45,7 @@ beforeAll(async () => {
   fetchKufarMap = module.fetchKufarMap;
   saveKufarAds = module.saveKufarAds;
   backfillKufarSourcePrices = module.backfillKufarSourcePrices;
+  backfillKufarSellerInfo = module.backfillKufarSellerInfo;
   buildKufarSearchUrl = module.buildKufarSearchUrl;
 });
 
@@ -161,6 +163,58 @@ describe('Kufar sync', () => {
       data: {
         currency: 'BYN',
         sourcePrice: 7500000,
+      },
+    });
+  });
+
+  it('backfills seller name and phone for existing Kufar listings', async () => {
+    prismaMock.listing.findMany.mockResolvedValue([
+      { id: '1', sellerName: null, sellerPhone: null },
+    ]);
+    prismaMock.listing.update.mockResolvedValue({ id: '1' });
+
+    installFetchMock([
+      {
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "account_parameters": [
+                {
+                  "pl": "Имя",
+                  "p": "name",
+                  "v": "Агентство недвижимости ''Юриэлт'' г.Гродно"
+                },
+                {
+                  "pl": "Контактное лицо",
+                  "p": "contact_person",
+                  "v": "Наталия"
+                }
+              ]
+            };
+          </script>
+        `,
+      },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375298187308',
+        }),
+      },
+    ]);
+
+    const result = await backfillKufarSellerInfo();
+
+    expect(result).toEqual({
+      scanned: 1,
+      matched: 1,
+      updated: 1,
+    });
+    expect(prismaMock.listing.update).toHaveBeenCalledWith({
+      where: { id: '1' },
+      data: {
+        sellerName: "Агентство недвижимости ''Юриэлт'' г.Гродно, Наталия",
+        sellerPhone: '375298187308',
       },
     });
   });

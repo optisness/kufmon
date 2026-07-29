@@ -9,7 +9,7 @@ import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
 import { renderHistoryPageHtml } from "./historyView.js";
 import { formatListingAttemptCount, formatListingEventAt } from "./listingTable.js";
-import { backfillKufarSourcePrices } from "./kufar.js";
+import { backfillKufarSellerInfo, backfillKufarSourcePrices } from "./kufar.js";
 import {
   ADMIN_LOGIN_LOCK_MS,
   ADMIN_SESSION_COOKIE,
@@ -640,6 +640,7 @@ function renderHealthPage(options: {
   status: Awaited<ReturnType<typeof getServiceStatus>>;
   authenticated?: boolean;
   backfillResult?: { updated: number; scanned: number; matched: number } | null;
+  sellerBackfillResult?: { updated: number; scanned: number; matched: number } | null;
 }) {
   const statusLabel = options.status.db ? "OK" : "Error";
   const telegramLabel = options.status.telegram ? "Configured" : "Not configured";
@@ -659,6 +660,14 @@ function renderHealthPage(options: {
         ${options.backfillResult ? `<p><strong>Готово:</strong> обновлено ${options.backfillResult.updated} из ${options.backfillResult.scanned} найденных, совпадений ${options.backfillResult.matched}.</p>` : ""}
         <form method="POST" action="/ui/backfill-source-price" onsubmit="return confirm('Запустить разовый backfill валюты Kufar?')">
           <button type="submit" class="btn-success">Запустить backfill</button>
+        </form>
+      </div>
+      <div class="page-card" style="margin-top:16px;">
+        <h3>Разовый backfill seller / phone</h3>
+        <p>Заполняет sellerName и sellerPhone у существующих объявлений по текущей странице объявления и телефону Kufar.</p>
+        ${options.sellerBackfillResult ? `<p><strong>Готово:</strong> обновлено ${options.sellerBackfillResult.updated} из ${options.sellerBackfillResult.scanned} найденных, совпадений ${options.sellerBackfillResult.matched}.</p>` : ""}
+        <form method="POST" action="/ui/backfill-seller-info" onsubmit="return confirm('Запустить разовый backfill seller/phone?')">
+          <button type="submit" class="btn-success">Заполнить seller / phone</button>
         </form>
       </div>
       ` : ""}
@@ -1345,6 +1354,13 @@ app.get("/health", async (req: any, reply) => {
           matched: parsePositiveInt(req.query.matched, 0),
         }
       : null,
+    sellerBackfillResult: typeof req.query?.sellerBackfill === "string" && req.query.sellerBackfill === "done"
+      ? {
+          updated: parsePositiveInt(req.query.sellerUpdated, 0),
+          scanned: parsePositiveInt(req.query.sellerScanned, 0),
+          matched: parsePositiveInt(req.query.sellerMatched, 0),
+        }
+      : null,
   }));
 });
 
@@ -1647,6 +1663,11 @@ app.get("/ui/telegram-deliveries", async (req: any, reply) => {
 app.post("/ui/backfill-source-price", async (_req: any, reply) => {
   const result = await backfillKufarSourcePrices();
   reply.redirect(`/health?backfill=done&updated=${result.updated}&scanned=${result.scanned}&matched=${result.matched}`);
+});
+
+app.post("/ui/backfill-seller-info", async (_req: any, reply) => {
+  const result = await backfillKufarSellerInfo();
+  reply.redirect(`/health?sellerBackfill=done&sellerUpdated=${result.updated}&sellerScanned=${result.scanned}&sellerMatched=${result.matched}`);
 });
 
 app.post("/users", async (req: any, reply) => {

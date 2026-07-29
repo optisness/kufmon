@@ -40,6 +40,10 @@ export type KufarListingDetails = {
   imageUrls: string[];
 };
 
+export type KufarSellerDetails = {
+  sellerName: string | null;
+};
+
 export function parseTitle(html: string) {
   const match = html.match(/<title>(.*?)<\/title>/);
 
@@ -126,6 +130,29 @@ function normalizeImageUrl(value: string) {
   if (!stripped) return null;
 
   return `https://rms.kufar.by/v1/gallery/${stripped}`;
+}
+
+function findParameterValue(root: any, key: string): string | null {
+  if (!root || typeof root !== "object") return null;
+
+  if (Array.isArray(root)) {
+    for (const item of root) {
+      const found = findParameterValue(item, key);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  if (typeof root.p === "string" && root.p === key) {
+    return normalizeText(root.v);
+  }
+
+  for (const value of Object.values(root)) {
+    const found = findParameterValue(value, key);
+    if (found) return found;
+  }
+
+  return null;
 }
 
 function walkJson(node: any, visitor: (key: string, value: any) => void) {
@@ -269,4 +296,20 @@ export function extractListingDetails(html: string): KufarListingDetails {
     fullDescription: htmlDescription ?? pickBestDescription(descriptionCandidates),
     imageUrls,
   };
+}
+
+export function extractSellerDetails(html: string): KufarSellerDetails {
+  const json = extractJson(html);
+  if (!json) {
+    return { sellerName: null };
+  }
+
+  const sellerName = findParameterValue(json, "name");
+  const contactPerson = findParameterValue(json, "contact_person");
+
+  if (sellerName && contactPerson) {
+    return { sellerName: `${sellerName}, ${contactPerson}` };
+  }
+
+  return { sellerName };
 }
