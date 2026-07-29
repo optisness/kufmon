@@ -18,8 +18,6 @@ Current implementation notes:
 - The public landing page at `/` shows service status and a password field. A valid password issues an authenticated admin session and redirects to `/ui/users`.
 - The public application page at `/apply` embeds the Yandex Form used from the Telegram bot.
 - The admin UI is split into protected pages: `/ui/users` for users, `/ui/subscriptions` for subscriptions, `/ui/listings` for listings, and `/ui/telegram-deliveries` for Telegram delivery logs. The visible nav after login only links to Users, Subscriptions, Listings, Telegram, Health, and Sync.
-- The public `/health` page stays available for Render checks, and when the admin is authenticated it also exposes a one-time Kufar currency/source-price backfill action. That backfill is meant to be removed after use.
-- The `/health` page also exposes a one-time seller/phone backfill action for existing listings. It fills missing `sellerName` and `sellerPhone` values from the live Kufar item page and phone endpoint.
 - The admin tables now paginate with `page` and `limit` query parameters instead of rendering the full collection in a single scroll.
 - Sorting in the admin tables is server-side and uses `sort` and `dir` query parameters, so sorted results stay consistent across paginated pages.
 - Row numbers continue across pages instead of resetting to `1` on every page.

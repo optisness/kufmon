@@ -9,7 +9,6 @@ import { metrics, incMetric } from "./metrics.js";
 import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
 import { renderHistoryPageHtml } from "./historyView.js";
 import { formatListingAttemptCount, formatListingEventAt } from "./listingTable.js";
-import { backfillKufarSellerInfo, backfillKufarSourcePrices } from "./kufar.js";
 import {
   ADMIN_LOGIN_LOCK_MS,
   ADMIN_SESSION_COOKIE,
@@ -235,6 +234,17 @@ function parseRoomsSelection(value: any) {
 function formatPrice(value: number | string | null | undefined) {
   if (value == null || value === "") return "—";
   return `$${String(value)}`;
+}
+
+function formatSellerLabel(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (!text) return "—";
+
+  return text
+    .replace(/\bООО\b\.?\s*/gi, "")
+    .replace(/\bАгентство недвижимости\b\s*/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim() || "—";
 }
 
 function formatDateTime(value: string | Date | null | undefined) {
@@ -639,8 +649,6 @@ function renderLandingPage(options: {
 function renderHealthPage(options: {
   status: Awaited<ReturnType<typeof getServiceStatus>>;
   authenticated?: boolean;
-  backfillResult?: { updated: number; scanned: number; matched: number } | null;
-  sellerBackfillResult?: { updated: number; scanned: number; matched: number } | null;
 }) {
   const statusLabel = options.status.db ? "OK" : "Error";
   const telegramLabel = options.status.telegram ? "Configured" : "Not configured";
@@ -653,24 +661,6 @@ function renderHealthPage(options: {
     <div class="section">
       <h2>Состояние сервиса</h2>
       <p>Публичная проверка для Render и удобная ручная диагностика.</p>
-      ${options.authenticated ? `
-      <div class="page-card" style="margin-top:16px;">
-        <h3>Разовый backfill валюты Kufar</h3>
-        <p>Обновляет currency/sourcePrice у существующих объявлений по текущим данным Kufar. После запуска этот блок можно удалить.</p>
-        ${options.backfillResult ? `<p><strong>Готово:</strong> обновлено ${options.backfillResult.updated} из ${options.backfillResult.scanned} найденных, совпадений ${options.backfillResult.matched}.</p>` : ""}
-        <form method="POST" action="/ui/backfill-source-price" onsubmit="return confirm('Запустить разовый backfill валюты Kufar?')">
-          <button type="submit" class="btn-success">Запустить backfill</button>
-        </form>
-      </div>
-      <div class="page-card" style="margin-top:16px;">
-        <h3>Разовый backfill seller / phone</h3>
-        <p>Заполняет sellerName и sellerPhone у существующих объявлений по текущей странице объявления и телефону Kufar.</p>
-        ${options.sellerBackfillResult ? `<p><strong>Готово:</strong> обновлено ${options.sellerBackfillResult.updated} из ${options.sellerBackfillResult.scanned} найденных, совпадений ${options.sellerBackfillResult.matched}.</p>` : ""}
-        <form method="POST" action="/ui/backfill-seller-info" onsubmit="return confirm('Запустить разовый backfill seller/phone?')">
-          <button type="submit" class="btn-success">Заполнить seller / phone</button>
-        </form>
-      </div>
-      ` : ""}
       <div class="page-grid" style="margin-top:16px;">
         <div class="page-card">
           <h3>Сервис</h3>
@@ -1262,8 +1252,8 @@ function renderListingsPage(options: {
             ${renderSortableHeader("Название", "title", "string", options.currentSort, "listing-title-column")}
             ${renderSortableHeader("Кат", "category", "string", options.currentSort)}
             ${renderSortableHeader("Тип", "seller", "string", options.currentSort)}
-            <th>Продавец</th>
-            <th>Телефон</th>
+            <th>Seller</th>
+            <th>Tel</th>
             ${renderSortableHeader("Цена", "price", "number", options.currentSort)}
             ${renderSortableHeader("Room", "rooms", "number", options.currentSort, "center-column")}
             <th class="sortable attempt-column" data-sortable="true" data-sort-type="number" data-sort-key="missingCount"${options.currentSort?.key === "missingCount" ? ` data-sort-dir="${options.currentSort.direction}"` : ""}>Err</th>
@@ -1286,7 +1276,7 @@ function renderListingsPage(options: {
               </td>
               <td><span class="compact-badge category">${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</span></td>
               <td><span class="compact-badge ${escapeHtml(l.sellerType === "company" ? "company" : l.sellerType === "private" ? "private" : "unknown")}">${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</span></td>
-              <td>${escapeHtml(l.sellerName || "-")}</td>
+              <td>${escapeHtml(formatSellerLabel(l.sellerName))}</td>
               <td>${escapeHtml(l.sellerPhone || "-")}</td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td class="center-column">${l.rooms ?? "-"}</td>
@@ -1347,20 +1337,6 @@ app.get("/health", async (req: any, reply) => {
   reply.type("text/html; charset=utf-8").send(renderHealthPage({
     status,
     authenticated: isAdminAuthenticated(req.headers.cookie),
-    backfillResult: typeof req.query?.backfill === "string" && req.query.backfill === "done"
-      ? {
-          updated: parsePositiveInt(req.query.updated, 0),
-          scanned: parsePositiveInt(req.query.scanned, 0),
-          matched: parsePositiveInt(req.query.matched, 0),
-        }
-      : null,
-    sellerBackfillResult: typeof req.query?.sellerBackfill === "string" && req.query.sellerBackfill === "done"
-      ? {
-          updated: parsePositiveInt(req.query.sellerUpdated, 0),
-          scanned: parsePositiveInt(req.query.sellerScanned, 0),
-          matched: parsePositiveInt(req.query.sellerMatched, 0),
-        }
-      : null,
   }));
 });
 
@@ -1658,16 +1634,6 @@ app.get("/ui/telegram-deliveries", async (req: any, reply) => {
     query: req.query ?? {},
     filters,
   }));
-});
-
-app.post("/ui/backfill-source-price", async (_req: any, reply) => {
-  const result = await backfillKufarSourcePrices();
-  reply.redirect(`/health?backfill=done&updated=${result.updated}&scanned=${result.scanned}&matched=${result.matched}`);
-});
-
-app.post("/ui/backfill-seller-info", async (_req: any, reply) => {
-  const result = await backfillKufarSellerInfo();
-  reply.redirect(`/health?sellerBackfill=done&sellerUpdated=${result.updated}&sellerScanned=${result.scanned}&sellerMatched=${result.matched}`);
 });
 
 app.post("/users", async (req: any, reply) => {
