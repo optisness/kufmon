@@ -239,16 +239,17 @@ async function enrichNewListingSnapshot(
   id: string,
   snapshot: ReturnType<typeof normalizeKufarListing>,
 ) {
+  let phone: string | null = null;
+
+  try {
+    phone = await fetchKufarPhone(id);
+  } catch (phoneError) {
+    logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
+  }
+
   try {
     const html = await fetchKufarItem(id);
     const details = extractListingDetails(html);
-    let phone: string | null = null;
-
-    try {
-      phone = await fetchKufarPhone(id);
-    } catch (phoneError) {
-      logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
-    }
 
     return {
       ...snapshot,
@@ -267,7 +268,7 @@ async function enrichNewListingSnapshot(
     return {
       ...snapshot,
       fullDescription: snapshot.description,
-      sellerPhone: null,
+      sellerPhone: phone,
       imageUrls: snapshot.imageUrl ? [snapshot.imageUrl] : [],
     };
   }

@@ -325,6 +325,54 @@ describe('Kufar sync', () => {
     expect(metrics.deactivations).toBe(0);
   });
 
+  it('keeps the phone number even if item page enrichment fails', async () => {
+    prismaMock.user.findMany.mockResolvedValue([]);
+    prismaMock.subscription.findMany.mockResolvedValue([]);
+    prismaMock.listing.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prismaMock.listing.create.mockResolvedValue({ id: '1' });
+    prismaMock.adEvent.create.mockResolvedValue({});
+
+    installFetchMock([
+      {
+        ok: true,
+        json: async () => ({
+          ads: [
+            {
+              ad_id: 1,
+              subject: 'Phone fallback listing',
+              price_usd: '40000',
+              ad_parameters: [
+                { p: 'rooms', v: '2' },
+                { p: 'coordinates', v: [27.5, 53.9] },
+              ],
+              body_short: 'Cozy flat',
+              images: [{ path: 'adim1/example.jpg' }],
+            },
+          ],
+        }),
+      },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
+      },
+      {
+        ok: false,
+        status: 500,
+        text: async () => 'error',
+      },
+    ]);
+
+    await saveKufarAds();
+
+    const createdEvent = prismaMock.adEvent.create.mock.calls[0]?.[0]?.data;
+
+    expect(createdEvent?.changesJson?.snapshot?.sellerPhone).toBe('375291112233');
+  });
+
   it('preserves the address from the search result when the item page does not include it', async () => {
     prismaMock.user.findMany.mockResolvedValue([]);
     prismaMock.subscription.findMany.mockResolvedValue([]);
