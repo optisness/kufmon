@@ -81,6 +81,18 @@ describe('parseListingData', () => {
     );
   });
 
+  it('returns null for blocked or rate-limited phone endpoint responses', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ phone: '' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchKufarPhone('1078366830')).resolves.toBe(null);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('extracts seller name and contact person from the item html json', () => {
     const html = `
       <script>

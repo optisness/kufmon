@@ -17,21 +17,42 @@ export async function fetchKufarItem(id: string) {
 export async function fetchKufarPhone(id: string) {
   const url = `https://api.kufar.by/search-api/v2/item/${id}/phone`;
 
-  const res = await fetch(url, {
-    headers: {
-      accept: "application/json, text/plain, */*",
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-    },
-  });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, {
+      headers: {
+        accept: "application/json, text/plain, */*",
+        "accept-language": "ru-RU,ru;q=0.9",
+        origin: "https://re.kufar.by",
+        referer: `https://re.kufar.by/vi/${id}`,
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        "x-requested-with": "XMLHttpRequest",
+      },
+    });
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch phone for item ${id}: HTTP ${res.status}`);
+    if (res.ok) {
+      const data = await res.json();
+      const phone = typeof data?.phone === "string" ? data.phone.trim() : "";
+      return phone.length > 0 ? phone : null;
+    }
+
+    if (res.status === 404 || res.status === 403 || res.status === 429) {
+      if (attempt === 2) {
+        return null;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      continue;
+    }
+
+    if (attempt === 2) {
+      throw new Error(`Failed to fetch phone for item ${id}: HTTP ${res.status}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
   }
 
-  const data = await res.json();
-  const phone = typeof data?.phone === "string" ? data.phone.trim() : "";
-  return phone.length > 0 ? phone : null;
+  return null;
 }
 
 export type KufarListingDetails = {
