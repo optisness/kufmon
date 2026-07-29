@@ -18,6 +18,8 @@ describe("listingEvents", () => {
         rooms: 2,
         category: "1010",
         sellerType: "private",
+        sellerName: "Ирина",
+        sellerPhone: "375291112233",
         url: "https://re.kufar.by/vi/1",
         location: null,
       },
@@ -27,6 +29,8 @@ describe("listingEvents", () => {
     expect(summary).toContain("Цена: $12345");
     expect(summary).toContain("Комнаты: 2");
     expect(summary).toContain("Адрес: Grodno, Lenina 1");
+    expect(summary).toContain("Продавец: Ирина");
+    expect(summary).toContain("Телефон: 375291112233");
     expect(summary).toContain("Полное описание: Full description with all details");
     expect(summary).toContain("Все фото: https://rms.kufar.by/v1/gallery/adim1/photo-1.jpg, https://rms.kufar.by/v1/gallery/adim1/photo-2.jpg");
     expect(summary).not.toContain("Фото:");
@@ -50,5 +54,7 @@ describe("listingEvents", () => {
     );
 
     expect(snapshot.address).toBe("Kurchatova ul, Grodno, Grodnenskaya oblast");
+    expect(snapshot.sellerName).toBe(null);
+    expect(snapshot.sellerPhone).toBe(null);
   });
 });

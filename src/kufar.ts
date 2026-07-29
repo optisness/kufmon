@@ -4,7 +4,7 @@ import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
 import { matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
 import { formatTelegramBatchMessage, splitTelegramMessageChunks, type TelegramEventType } from "./telegramMessage.js";
-import { extractListingDetails, fetchKufarItem } from "./kufarItem.js";
+import { extractListingDetails, fetchKufarItem, fetchKufarPhone } from "./kufarItem.js";
 import {
   buildChangedEventPayload,
   buildContentHash,
@@ -242,11 +242,19 @@ async function enrichNewListingSnapshot(
   try {
     const html = await fetchKufarItem(id);
     const details = extractListingDetails(html);
+    let phone: string | null = null;
+
+    try {
+      phone = await fetchKufarPhone(id);
+    } catch (phoneError) {
+      logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
+    }
 
     return {
       ...snapshot,
       address: details.address ?? snapshot.address ?? null,
       fullDescription: details.fullDescription ?? snapshot.description,
+      sellerPhone: phone,
       imageUrls: details.imageUrls.length > 0
         ? details.imageUrls
         : snapshot.imageUrl
@@ -259,9 +267,37 @@ async function enrichNewListingSnapshot(
     return {
       ...snapshot,
       fullDescription: snapshot.description,
+      sellerPhone: null,
       imageUrls: snapshot.imageUrl ? [snapshot.imageUrl] : [],
     };
   }
+}
+
+function buildListingWriteData(
+  snapshot: ReturnType<typeof normalizeKufarListing> & { sellerPhone?: string | null },
+  existing: any,
+  syncTime: Date,
+) {
+  return {
+    title: snapshot.title,
+    price: snapshot.price,
+    category: snapshot.category,
+    sellerType: snapshot.sellerType,
+    sellerName: snapshot.sellerName,
+    sellerPhone: snapshot.sellerPhone ?? existing?.sellerPhone ?? null,
+    description: snapshot.description,
+    imageUrl: snapshot.imageUrl,
+    rooms: snapshot.rooms,
+    currency: snapshot.currency ?? "USD",
+    sourcePrice: snapshot.sourcePrice ?? null,
+    url: snapshot.url,
+    location: snapshot.location ?? existing?.location ?? null,
+    source: KUFAR_SOURCE,
+    contentHash: buildContentHash(snapshot),
+    missingCount: 0,
+    lastSeenAt: syncTime,
+    isActive: true,
+  };
 }
 
 function matchesUserSubscriptions(
@@ -401,30 +437,12 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
 
   for (const ad of fetchedAds) {
     const existing = existingById.get(ad.id);
-    const nextHash = buildContentHash(ad.snapshot);
-    const baseData = {
-      title: ad.snapshot.title,
-      price: ad.snapshot.price,
-      category: ad.snapshot.category,
-      sellerType: ad.snapshot.sellerType,
-      description: ad.snapshot.description,
-      imageUrl: ad.snapshot.imageUrl,
-      rooms: ad.snapshot.rooms,
-      currency: ad.snapshot.currency ?? "USD",
-      sourcePrice: ad.snapshot.sourcePrice ?? null,
-      url: ad.snapshot.url,
-      location: ad.snapshot.location ?? existing?.location ?? null,
-      source: KUFAR_SOURCE,
-      contentHash: nextHash,
-      missingCount: 0,
-      lastSeenAt: syncTime,
-      isActive: true,
-    };
 
     if (!existing) {
       incMetric("newListings");
       logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "New listing");
       const newSnapshot = await enrichNewListingSnapshot(ad.id, ad.snapshot);
+      const baseData = buildListingWriteData(newSnapshot, existing, syncTime);
 
       await prisma.listing.create({
         data: {
@@ -471,6 +489,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
       incMetric("newListings");
       logger.info({ id: ad.id, category: ad.snapshot.category, price: ad.snapshot.price }, "Listing restored");
       const newSnapshot = await enrichNewListingSnapshot(ad.id, ad.snapshot);
+      const baseData = buildListingWriteData(newSnapshot, existing, syncTime);
 
       await prisma.listing.update({
         where: { id: ad.id },
@@ -513,6 +532,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     }
 
     if (existing.sourcePrice == null) {
+      const baseData = buildListingWriteData(ad.snapshot, existing, syncTime);
       await prisma.listing.update({
         where: { id: ad.id },
         data: baseData,
@@ -537,6 +557,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
       rooms: ad.snapshot.rooms,
     };
     const changes = diffListingSnapshots(previousSnapshot, nextSnapshot);
+    const baseData = buildListingWriteData(ad.snapshot, existing, syncTime);
 
     await prisma.listing.update({
       where: { id: ad.id },
@@ -617,6 +638,8 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
                 rooms: listing.rooms ?? null,
                 category: listing.category ?? null,
                 sellerType,
+                sellerName: listing.sellerName ?? null,
+                sellerPhone: listing.sellerPhone ?? null,
                 url: listing.url,
                 location: listing.location ?? null,
               };

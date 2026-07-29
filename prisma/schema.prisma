@@ -20,6 +20,8 @@ model Listing {
   rooms    Int?
   category String?
   sellerType String?
+  sellerName String?
+  sellerPhone String?
   source   String  @default("kufar.by")
   isActive Boolean @default(true)
   contentHash String?

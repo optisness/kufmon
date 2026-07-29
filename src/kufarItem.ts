@@ -14,6 +14,26 @@ export async function fetchKufarItem(id: string) {
   return await res.text();
 }
 
+export async function fetchKufarPhone(id: string) {
+  const url = `https://api.kufar.by/search-api/v2/item/${id}/phone`;
+
+  const res = await fetch(url, {
+    headers: {
+      accept: "application/json, text/plain, */*",
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch phone for item ${id}: HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  const phone = typeof data?.phone === "string" ? data.phone.trim() : "";
+  return phone.length > 0 ? phone : null;
+}
+
 export type KufarListingDetails = {
   address: string | null;
   fullDescription: string | null;

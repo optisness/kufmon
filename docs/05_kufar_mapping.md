@@ -190,7 +190,7 @@ If there are no images:
 image_url = NULL
 ```
 
-For `NEW` history events, the sync layer now stores the full address, the full untruncated description, and all image links alongside the usual normalized snapshot. Those extra fields are kept only in the event payload and do not change the normalized listing schema.
+For `NEW` history events, the sync layer now stores the full address, the seller display name, the seller phone, the full untruncated description, and all image links alongside the usual normalized snapshot. Those extra fields are kept only in the event payload and do not change the normalized listing schema.
 
 Future versions may store all images separately in the listing table as well.
 

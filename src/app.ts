@@ -124,6 +124,8 @@ function parseListingsFilterState(query: Record<string, unknown>) {
     status,
     priceMin: parseOptionalNumber(query.priceMin),
     priceMax: parseOptionalNumber(query.priceMax),
+    sellerText: typeof query.sellerText === "string" ? query.sellerText.trim() : "",
+    phoneText: typeof query.phoneText === "string" ? query.phoneText.trim() : "",
   };
 }
 
@@ -153,6 +155,24 @@ function buildListingsWhere(filters: ReturnType<typeof parseListingsFilterState>
 
   if (filters.priceMax != null) {
     andConditions.push({ price: { lte: filters.priceMax } });
+  }
+
+  if (filters.sellerText) {
+    andConditions.push({
+      sellerName: {
+        contains: filters.sellerText,
+        mode: "insensitive",
+      },
+    });
+  }
+
+  if (filters.phoneText) {
+    andConditions.push({
+      sellerPhone: {
+        contains: filters.phoneText,
+        mode: "insensitive",
+      },
+    });
   }
 
   return andConditions.length === 1 ? andConditions[0] : { AND: andConditions };
@@ -1179,7 +1199,7 @@ function renderListingsPage(options: {
           <input type="hidden" name="sort" value="${escapeHtml(options.currentSort.key)}" />
           <input type="hidden" name="dir" value="${escapeHtml(options.currentSort.direction)}" />
         ` : ""}
-        <div class="form-row" style="grid-template-columns: 0.9fr 0.9fr 0.8fr 0.8fr 0.75fr auto; align-items:end;">
+        <div class="form-row" style="grid-template-columns: 0.9fr 0.9fr 0.8fr 0.8fr 0.85fr 0.85fr 0.75fr auto; align-items:end;">
           <div class="form-group">
             <label>Продавец</label>
             <select name="seller">
@@ -1195,6 +1215,14 @@ function renderListingsPage(options: {
               <option value="active"${options.filters.status === "active" ? " selected" : ""}>Активные</option>
               <option value="inactive"${options.filters.status === "inactive" ? " selected" : ""}>Неактивные</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label>По продавцу</label>
+            <input name="sellerText" value="${escapeHtml(options.filters.sellerText ?? "")}" placeholder="Ирина, агентство..." />
+          </div>
+          <div class="form-group">
+            <label>По телефону</label>
+            <input name="phoneText" value="${escapeHtml(options.filters.phoneText ?? "")}" placeholder="37529..." />
           </div>
           <div class="form-group">
             <label>Цена от</label>
@@ -1220,7 +1248,9 @@ function renderListingsPage(options: {
             <th>№</th>
             ${renderSortableHeader("Название", "title", "string", options.currentSort)}
             ${renderSortableHeader("Кат", "category", "string", options.currentSort)}
-            ${renderSortableHeader("Продав", "seller", "string", options.currentSort)}
+            ${renderSortableHeader("Тип", "seller", "string", options.currentSort)}
+            <th>Продавец</th>
+            <th>Телефон</th>
             ${renderSortableHeader("Цена", "price", "number", options.currentSort)}
             ${renderSortableHeader("Room", "rooms", "number", options.currentSort, "center-column")}
             <th class="sortable attempt-column" data-sortable="true" data-sort-type="number" data-sort-key="missingCount"${options.currentSort?.key === "missingCount" ? ` data-sort-dir="${options.currentSort.direction}"` : ""}>Err</th>
@@ -1243,6 +1273,8 @@ function renderListingsPage(options: {
               </td>
               <td><span class="compact-badge category">${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</span></td>
               <td><span class="compact-badge ${escapeHtml(l.sellerType === "company" ? "company" : l.sellerType === "private" ? "private" : "unknown")}">${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</span></td>
+              <td>${escapeHtml(l.sellerName || "-")}</td>
+              <td>${escapeHtml(l.sellerPhone || "-")}</td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td class="center-column">${l.rooms ?? "-"}</td>
               <td class="attempt-column">${escapeHtml(formatListingAttemptCount(l.missingCount))}</td>

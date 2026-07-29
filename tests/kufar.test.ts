@@ -235,6 +235,12 @@ describe('Kufar sync', () => {
           </script>
         `,
       },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
+      },
     ]);
 
     const result = await saveKufarAds();
@@ -306,6 +312,12 @@ describe('Kufar sync', () => {
             };
           </script>
         `,
+      },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
       },
     ]);
 
@@ -395,6 +407,12 @@ describe('Kufar sync', () => {
       },
       {
         ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
+      },
+      {
+        ok: true,
         text: async () => `
           <script>
             window.__INITIAL_STATE__ = {
@@ -407,12 +425,18 @@ describe('Kufar sync', () => {
           </script>
         `,
       },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
+      },
     ]);
 
     const result = await saveKufarAds();
 
     expect(result).toBe(2);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
     expect(String(fetchMock.mock.calls[1]?.[0] ?? '')).toContain('cursor=cursor-page-2');
     expect(prismaMock.listing.create).toHaveBeenCalledTimes(2);
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(2);
@@ -475,6 +499,12 @@ describe('Kufar sync', () => {
             };
           </script>
         `,
+      },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
       },
     ]);
 
@@ -555,6 +585,12 @@ describe('Kufar sync', () => {
             };
           </script>
         `,
+      },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
       },
     ]);
 
@@ -666,6 +702,12 @@ describe('Kufar sync', () => {
           </script>
         `,
       },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
+      },
     ]);
 
     const result = await saveKufarAds();
@@ -732,6 +774,12 @@ describe('Kufar sync', () => {
             };
           </script>
         `,
+      },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
       },
     ]);
 
@@ -802,6 +850,12 @@ describe('Kufar sync', () => {
           </script>
         `,
       },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
+      },
     ]);
 
     const result = await saveKufarAds();
@@ -868,6 +922,12 @@ describe('Kufar sync', () => {
             };
           </script>
         `,
+      },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
+        }),
       },
     ]);
 
@@ -941,6 +1001,12 @@ describe('Kufar sync', () => {
               ],
             },
           ],
+        }),
+      },
+      {
+        ok: true,
+        json: async () => ({
+          phone: '375291112233',
         }),
       },
     ]);

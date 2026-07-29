@@ -46,18 +46,18 @@ describe("admin table sorting", () => {
 
   it("sorts listings by title, price, and active state", () => {
     const rows = [
-      row(["1", "10", "Zeta", "-", "-", "120000", "2", "-", "❌"], [null, null, null, null, null, 120000, 2, null, 0]),
-      row(["2", "11", "alpha", "-", "-", "80000", "3", "-", "✅"], [null, null, null, null, null, 80000, 3, null, 1]),
-      row(["3", "12", "Мир", "-", "-", "95000", "1", "-", "❌"], [null, null, null, null, null, 95000, 1, null, 0]),
+      row(["1", "10", "Zeta", "-", "-", "-", "-", "120000", "2", "-", "❌"], [null, null, null, null, null, null, null, 120000, 2, null, 0]),
+      row(["2", "11", "alpha", "-", "-", "-", "-", "80000", "3", "-", "✅"], [null, null, null, null, null, null, null, 80000, 3, null, 1]),
+      row(["3", "12", "Мир", "-", "-", "-", "-", "95000", "1", "-", "❌"], [null, null, null, null, null, null, null, 95000, 1, null, 0]),
     ];
 
     const byTitle = sortRows(rows, 2, "string", "asc");
     expect(byTitle.map((r) => r.cells[2].textContent)).toEqual(["alpha", "Zeta", "Мир"]);
 
-    const byPrice = sortRows(rows, 5, "number", "asc");
-    expect(byPrice.map((r) => r.cells[5].textContent)).toEqual(["80000", "95000", "120000"]);
+    const byPrice = sortRows(rows, 7, "number", "asc");
+    expect(byPrice.map((r) => r.cells[7].textContent)).toEqual(["80000", "95000", "120000"]);
 
-    const byActive = sortRows(rows, 8, "boolean", "desc");
-    expect(byActive.map((r) => r.cells[8].textContent)).toEqual(["✅", "❌", "❌"]);
+    const byActive = sortRows(rows, 10, "boolean", "desc");
+    expect(byActive.map((r) => r.cells[10].textContent)).toEqual(["✅", "❌", "❌"]);
   });
 });

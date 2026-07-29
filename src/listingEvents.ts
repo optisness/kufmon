@@ -10,6 +10,8 @@ export type ListingSnapshot = {
   rooms: number | null;
   category: string | null;
   sellerType: "company" | "private" | null;
+  sellerName: string | null;
+  sellerPhone: string | null;
   url: string;
   location: string | null;
   address?: string | null;
@@ -66,6 +68,18 @@ function getAdParameterValue(ad: any, key: string) {
   return null;
 }
 
+function buildSellerDisplayName(ad: any) {
+  const sellerName = normalizeText(getAdParameterValue(ad, "name"));
+  if (!sellerName) return null;
+
+  const contactPerson = normalizeText(getAdParameterValue(ad, "contact_person"));
+  if (contactPerson) {
+    return `${sellerName}, ${contactPerson}`;
+  }
+
+  return sellerName;
+}
+
 export function normalizeKufarListing(ad: any, fallbackCategory: string | null): ListingSnapshot {
   const title = normalizeText(ad?.subject) ?? "Unknown";
   const currency = normalizeText(ad?.currency)?.toUpperCase() ?? "USD";
@@ -82,6 +96,7 @@ export function normalizeKufarListing(ad: any, fallbackCategory: string | null):
   const imageUrl = extractFirstImageUrl(ad?.images);
   const category = ad?.category != null ? String(ad.category) : fallbackCategory;
   const sellerType = ad?.company_ad === true ? "company" : ad?.company_ad === false ? "private" : null;
+  const sellerName = buildSellerDisplayName(ad);
   const address = normalizeText(ad?.address ?? getAdParameterValue(ad, "address") ?? getAdParameterValue(ad, "location") ?? null);
   const coords = Array.isArray(ad?.c) && ad.c.length >= 2 ? [Number(ad.c[0]), Number(ad.c[1])] : null;
   const location = coords ? `${coords[1]}, ${coords[0]}` : null;
@@ -97,6 +112,8 @@ export function normalizeKufarListing(ad: any, fallbackCategory: string | null):
     rooms,
     category,
     sellerType,
+    sellerName,
+    sellerPhone: null,
     url,
     location,
     address,
@@ -183,6 +200,8 @@ export function formatEventSummary(eventType: string, changesJson: any) {
       `Комнаты: ${formatValue(snapshot.rooms)}`,
     ];
     if (snapshot.address) parts.push(`Адрес: ${snapshot.address}`);
+    if (snapshot.sellerName) parts.push(`Продавец: ${snapshot.sellerName}`);
+    if (snapshot.sellerPhone) parts.push(`Телефон: ${snapshot.sellerPhone}`);
     if (snapshot.fullDescription) parts.push(`Полное описание: ${snapshot.fullDescription}`);
     if (snapshot.description) parts.push(`Описание: ${snapshot.description}`);
     const allPhotos = Array.isArray(snapshot.imageUrls) && snapshot.imageUrls.length > 0

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { extractListingDetails, parseListingData, parseSellerType } from '../src/kufarItem.js';
+import { describe, it, expect, vi } from 'vitest';
+import { extractListingDetails, fetchKufarPhone, parseListingData, parseSellerType } from '../src/kufarItem.js';
 
 describe('parseListingData', () => {
   it('parses title, price, rooms and area from html', () => {
@@ -61,6 +61,24 @@ describe('parseListingData', () => {
         'https://rms.kufar.by/v1/gallery/adim1/photo-3.jpg',
       ],
     });
+  });
+
+  it('fetches the phone number from the Kufar item phone endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ phone: '375298187308' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchKufarPhone('1078366830')).resolves.toBe('375298187308');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.kufar.by/search-api/v2/item/1078366830/phone',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          accept: 'application/json, text/plain, */*',
+        }),
+      }),
+    );
   });
 
   it('prefers the full html description block over short json text', () => {

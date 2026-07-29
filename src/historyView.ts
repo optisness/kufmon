@@ -20,6 +20,8 @@ function emphasizeHistoryLabel(escapedLine: string) {
   const labels = [
     "Создано:",
     "Адрес:",
+    "Продавец:",
+    "Телефон:",
     "Цена:",
     "Комнаты:",
     "Описание:",

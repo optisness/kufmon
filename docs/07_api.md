@@ -28,9 +28,10 @@ Current implementation notes:
 - The listings page sorts price using the normalized numeric value, so the `"$"` prefix shown in the table does not break sorting.
 - The listings page also shows the `missingCount` column, which represents consecutive failed sync attempts before a listing becomes `REMOVED`.
 - The listings page now also shows and sorts by the timestamp of the latest `NEW` / `CHANGED` / `REMOVED` event, so operators can quickly see how recently a listing changed.
-- The `NEW` history payload includes the normalized snapshot plus the full address, full description, and all photo URLs, but those extra fields are only used in the admin history view.
+- The `NEW` history payload includes the normalized snapshot plus the full address, seller display name, seller phone, full description, and all photo URLs, but those extra fields are only used in the admin history view.
 - The history page formats timestamps in Minsk time (`Europe/Minsk`) and renders `NEW` event photos as a thumbnail gallery with a lightbox and arrow navigation.
 - Address extraction for `NEW` history events uses the structured `address` field from the Kufar listing response, so the history view can show it as a separate line without HTML parsing.
+- Seller extraction for `NEW` history events uses the structured `account_parameters` / `ad_parameters` fields: private sellers show their name, and company sellers show the agency name plus contact person when present. The sync also fetches the item phone endpoint for new listings and stores that number for the history view and admin table.
 - Full descriptions are taken from the Kufar listing page HTML `itemprop="description"` block, which preserves the longer text shown on the detail page.
 - Telegram delivery attempts are stored in `TelegramDeliveryLog` and the admin UI exposes them on `/ui/telegram-deliveries` with timestamp, user label, subscription name, chat ID, purpose, result, status code, and error text. The page supports filtering by user and by delivery result.
 - `/health` is public so Render can probe it without a session cookie. In the browser it renders a status page with navigation; JSON is still available via `?format=json` or an `application/json` accept header.
