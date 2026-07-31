@@ -88,15 +88,16 @@ Request:
     "notificationMode": "new_and_changed",
     "maxPrice": 80000,
     "rooms": [2],
+    "keywords": ["лоджия", "ремонт"],
     "intervalMinutes": 30
 }
 ```
 
-A subscription owns optional filter criteria and is attached to a single user. The implementation keeps the UI simple by splitting the common filters into separate `maxPrice` and `rooms` fields instead of a raw JSON editor.
+A subscription owns optional filter criteria and is attached to a single user. The implementation keeps the UI simple by splitting the common filters into separate `maxPrice`, `rooms`, and `keywords` fields instead of a raw JSON editor.
 
-In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name. The `category` field stores the Kufar category code used for the search, while the UI shows one-word labels such as `Квартира`, `Дом`, `Коммерция`, and `Участок`. The `sellerTypeFilter` field supports `all` and `private`, so a subscription can receive either every matching listing or only private sellers. After creation, the service sends the user a Telegram backfill containing matching active listings from the last subscription interval.
+In the admin UI, the `userId` field is rendered as a dropdown of existing users so the owner is visible by name. The `category` field stores the Kufar category code used for the search, while the UI shows one-word labels such as `Квартира`, `Дом`, `Коммерция`, and `Участок`. The `sellerTypeFilter` field supports `all` and `private`, so a subscription can receive either every matching listing or only private sellers. The optional `keywords` field matches the listing description. After creation, the service sends the user a Telegram backfill containing matching active listings from the last subscription interval.
 
-The subscription creation form is compacted into two visual rows in the admin UI: the first row contains name, user, source, and interval; the second row contains category, seller type, notification mode, max price, rooms, and submit.
+The subscription creation form is compacted into two visual rows in the admin UI: the first row contains name, user, source, and interval; the second row contains category, seller type, notification mode, max price, rooms, keywords, and submit.
 
 Response:
 
@@ -140,6 +141,7 @@ Supports:
 
 - maxPrice
 - rooms
+- keywords
 - category
 - interval
 - enabled

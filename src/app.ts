@@ -6,7 +6,7 @@ import { startCron } from "./cron.js";
 import { sendTrackedTelegram } from "./telegram.js";
 import { logger } from "./logger.js";
 import { metrics, incMetric } from "./metrics.js";
-import { formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
+import { formatKeywordsList, formatRoomsList, getSubscriptionFilters, matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
 import { renderHistoryPageHtml } from "./historyView.js";
 import { formatListingAttemptCount, formatListingEventAt } from "./listingTable.js";
 import {
@@ -126,6 +126,14 @@ function parseListingsFilterState(query: Record<string, unknown>) {
     priceMax: parseOptionalNumber(query.priceMax),
     sellerText: typeof query.sellerText === "string" ? query.sellerText.trim() : "",
   };
+}
+
+function parseSubscriptionKeywords(value: any) {
+  const source = Array.isArray(value) ? value : value == null ? [] : [value];
+  return source
+    .flatMap((item) => String(item).split(/[\n,;]+/))
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function buildListingsWhere(filters: ReturnType<typeof parseListingsFilterState>, cutoff: Date) {
@@ -1045,7 +1053,7 @@ function renderSubscriptionFormMarkup(options: {
             <input name="intervalMinutes" type="number" value="30" required />
           </div>
         </div>
-        <div class="form-row" style="grid-template-columns: 1fr 0.9fr 0.9fr 1fr 1.8fr auto; align-items:end;">
+        <div class="form-row" style="grid-template-columns: 1fr 0.9fr 0.9fr 1fr 1.2fr 1.8fr auto; align-items:end;">
           <div class="form-group">
             <label>Категория поиска</label>
             <select name="category" required>
@@ -1088,6 +1096,11 @@ function renderSubscriptionFormMarkup(options: {
               `).join("")}
             </div>
             <small style="color:#666;">Можно выбрать несколько вариантов.</small>
+          </div>
+          <div class="form-group">
+            <label>Keywords (optional)</label>
+            <input name="keywords" placeholder="лоджия, ремонт, балкон" />
+            <small style="color:#666;">Через запятую или с новой строки.</small>
           </div>
           <div class="form-group" style="display:flex; align-items:end;">
             <button type="submit">Создать подписку</button>
@@ -1139,6 +1152,7 @@ function renderSubscriptionsPage(options: {
             <th>Notify</th>
             <th>Max price</th>
             <th>Rooms</th>
+            <th>Keywords</th>
             ${renderSortableHeader("Interval", "interval", "number", options.currentSort)}
             ${renderSortableHeader("Enabled", "enabled", "boolean", options.currentSort)}
             <th>Delete</th>
@@ -1157,6 +1171,7 @@ function renderSubscriptionsPage(options: {
               <td>${escapeHtml(s.notificationMode === "new_only" ? "Только новые" : "Новые + изменения")}</td>
               <td>${options.subscriptionFiltersById.get(s.id)?.maxPrice != null ? `$${options.subscriptionFiltersById.get(s.id)?.maxPrice}` : "-"}</td>
               <td>${escapeHtml(formatRoomsList(options.subscriptionFiltersById.get(s.id)?.rooms))}</td>
+              <td>${escapeHtml(formatKeywordsList(options.subscriptionFiltersById.get(s.id)?.keywords))}</td>
               <td>${s.intervalMinutes} мин</td>
               <td data-sort-value="${s.enabled ? 1 : 0}">
                 <form method="POST" action="/subscriptions/toggle" style="display:inline;">
@@ -1691,6 +1706,7 @@ app.post("/subscriptions", async (req: any, reply) => {
   const notificationMode = body.notificationMode === "new_only" ? "new_only" : "new_and_changed";
   const maxPrice = parseOptionalNumber(body.maxPrice);
   const rooms = parseRoomsSelection(body.rooms);
+  const keywords = parseSubscriptionKeywords(body.keywords);
   const requestedIntervalMinutes = parseOptionalNumber(body.intervalMinutes) ?? 30;
   const owner = userId
     ? await prisma.user.findUnique({
@@ -1712,6 +1728,7 @@ app.post("/subscriptions", async (req: any, reply) => {
       notificationMode,
       maxPrice,
       rooms,
+      filters: keywords.length > 0 ? { keywords } : null,
       intervalMinutes,
     },
   });
@@ -1743,6 +1760,7 @@ app.post("/subscriptions", async (req: any, reply) => {
           rooms: listing.rooms,
           category: listing.category,
           source: listing.source,
+          description: listing.description,
         }),
       );
 

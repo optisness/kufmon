@@ -327,7 +327,7 @@ function buildListingWriteData(
 function matchesUserSubscriptions(
   subscriptionsByUser: Record<string, any[]>,
   userId: string,
-  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null; source?: string | null },
+  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null; source?: string | null; description?: string | null },
 ) {
   const userSubs = subscriptionsByUser[userId] || [];
   return userSubs.some((subscription) =>
@@ -337,6 +337,7 @@ function matchesUserSubscriptions(
       category: ad.category,
       sellerType: ad.sellerType,
       source: ad.source,
+      description: ad.description ?? null,
     }),
   );
 }
@@ -344,7 +345,7 @@ function matchesUserSubscriptions(
 function getMatchingSubscriptionNames(
   subscriptionsByUser: Record<string, any[]>,
   userId: string,
-  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null; source?: string | null },
+  ad: { price: number; rooms: number | null; category: string | null; sellerType: string | null; source?: string | null; description?: string | null },
   eventType: TelegramEventType,
 ) {
   const userSubs = subscriptionsByUser[userId] || [];
@@ -367,6 +368,7 @@ function getMatchingSubscriptionNames(
         category: ad.category,
         sellerType: ad.sellerType,
         source: ad.source,
+        description: ad.description ?? null,
       }),
     )
     .map((subscription) => String(subscription.name ?? "").trim())
@@ -511,6 +513,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
           category: ad.snapshot.category,
           sellerType,
           source: KUFAR_SOURCE,
+          description: ad.snapshot.description ?? null,
         }, "NEW");
 
         if (subscriptionNames.length > 0) {
@@ -557,6 +560,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
           category: ad.snapshot.category,
           sellerType: ad.snapshot.sellerType,
           source: KUFAR_SOURCE,
+          description: ad.snapshot.description ?? null,
         }, "NEW");
 
         if (subscriptionNames.length > 0) {
@@ -629,6 +633,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
           category: ad.snapshot.category,
           sellerType: ad.snapshot.sellerType,
           source: KUFAR_SOURCE,
+          description: ad.snapshot.description ?? null,
         }, "CHANGED");
 
         if (subscriptionNames.length > 0) {
@@ -700,6 +705,7 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
           category: listing.category ?? null,
           sellerType,
           source: listing.source ?? KUFAR_SOURCE,
+          description: listing.description ?? null,
         }, "REMOVED");
 
         if (subscriptionNames.length > 0) {

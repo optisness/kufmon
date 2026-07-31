@@ -6,6 +6,7 @@ type SubscriptionLike = {
   maxPrice?: number | null;
   rooms?: unknown;
   filters?: unknown;
+  keywords?: unknown;
 };
 
 type ListingLike = {
@@ -14,6 +15,7 @@ type ListingLike = {
   rooms?: number | null;
   category?: string | null;
   sellerType?: string | null;
+  description?: string | null;
 };
 
 export function normalizeSource(value: unknown) {
@@ -65,6 +67,23 @@ function normalizeRoomsList(value: unknown): string[] {
     .filter((room): room is string => room != null);
 }
 
+function normalizeKeywordsList(value: unknown): string[] {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value
+          .split(/[\n,;]+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : value == null
+        ? []
+        : [value];
+
+  return raw
+    .map((item) => String(item).trim())
+    .filter((item) => item.length > 0);
+}
+
 function matchesRoomFilter(listingRooms: number | null, filterValue: string) {
   if (filterValue === "5+") {
     return listingRooms != null && listingRooms >= 5;
@@ -77,6 +96,7 @@ function matchesRoomFilter(listingRooms: number | null, filterValue: string) {
 export function getSubscriptionFilters(subscription: SubscriptionLike) {
   const legacyFilters = parseMaybeJson(subscription.filters) as any;
   const legacyMaxPrice = legacyFilters?.price_max ?? legacyFilters?.maxPrice ?? null;
+  const legacyKeywords = legacyFilters?.keywords ?? legacyFilters?.description_keywords ?? legacyFilters?.descriptionKeywords ?? null;
   const maxPrice =
     subscription.maxPrice != null
       ? Number(subscription.maxPrice)
@@ -90,16 +110,36 @@ export function getSubscriptionFilters(subscription: SubscriptionLike) {
       : legacyFilters?.rooms;
 
   const rooms = normalizeRoomsList(roomsSource);
+  const keywordsSource =
+    subscription.keywords != null && normalizeKeywordsList(subscription.keywords).length > 0
+      ? subscription.keywords
+      : legacyKeywords;
+  const keywords = normalizeKeywordsList(keywordsSource);
 
   return {
     maxPrice: Number.isFinite(maxPrice as number) ? (maxPrice as number) : null,
     rooms,
+    keywords,
   };
 }
 
 export function formatRoomsList(rooms: unknown) {
   const values = normalizeRoomsList(rooms);
   return values.length > 0 ? values.join(", ") : "-";
+}
+
+export function formatKeywordsList(keywords: unknown) {
+  const values = normalizeKeywordsList(keywords);
+  return values.length > 0 ? values.join(", ") : "-";
+}
+
+function normalizeSearchText(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 export function matchesSubscriptionListing(subscription: SubscriptionLike, listing: ListingLike) {
@@ -129,6 +169,13 @@ export function matchesSubscriptionListing(subscription: SubscriptionLike, listi
 
   if (filters.rooms.length > 0) {
     if (!filters.rooms.some((room) => matchesRoomFilter(listing.rooms ?? null, room))) return false;
+  }
+
+  if (filters.keywords.length > 0) {
+    const haystack = normalizeSearchText(listing.description);
+    if (!haystack) return false;
+    const matched = filters.keywords.some((keyword) => haystack.includes(normalizeSearchText(keyword)));
+    if (!matched) return false;
   }
 
   return true;

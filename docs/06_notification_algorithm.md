@@ -168,6 +168,7 @@ Conditions:
 - if subscription has a category, the event must belong to the same category.
 - if subscription has `max_price`, the listing price must be at or below that limit;
 - if subscription has `rooms`, the listing room count must match one of the selected values.
+- if subscription has `keywords`, at least one keyword must appear in the listing description.
 
 Matching uses the normalized `ads` table, not raw JSON.
 
