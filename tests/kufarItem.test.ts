@@ -99,6 +99,7 @@ describe('parseListingData', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 403,
+      text: async () => 'phone hidden',
       json: async () => ({ phone: '' }),
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -120,23 +121,23 @@ describe('parseListingData', () => {
 
   it('extracts Kufar phone auth headers from item html', () => {
     const html = `
-      <script>
-        window.__INITIAL_STATE__ = {
-          "authorization": "Bearer test-token",
-          "x-app-name": "Web Kufar",
-          "x-app-request-source": "ad_view",
-          "x-pulse-environment-id": "pulse-123",
-          "x-rudder-anonymous-id": "rudder-456"
-        };
+      <script id="__NEXT_DATA__" type="application/json">
+        {
+          "props": {
+            "initialState": {
+              "user": {
+                "login": {
+                  "jwt": "test-token"
+                }
+              }
+            }
+          }
+        }
       </script>
     `;
 
     expect(extractKufarPhoneAuthHeaders(html)).toEqual({
       authorization: 'Bearer test-token',
-      'x-app-name': 'Web Kufar',
-      'x-app-request-source': 'ad_view',
-      'x-pulse-environment-id': 'pulse-123',
-      'x-rudder-anonymous-id': 'rudder-456',
     });
   });
 
@@ -145,19 +146,24 @@ describe('parseListingData', () => {
       .mockResolvedValueOnce({
         ok: false,
         status: 401,
+        text: async () => 'unauthorized',
         json: async () => ({ message: 'unauthorized' }),
       })
       .mockResolvedValueOnce({
         ok: true,
         text: async () => `
-          <script>
-            window.__INITIAL_STATE__ = {
-              "authorization": "Bearer test-token",
-              "x-app-name": "Web Kufar",
-              "x-app-request-source": "ad_view",
-              "x-pulse-environment-id": "pulse-123",
-              "x-rudder-anonymous-id": "rudder-456"
-            };
+          <script id="__NEXT_DATA__" type="application/json">
+            {
+              "props": {
+                "initialState": {
+                  "user": {
+                    "login": {
+                      "jwt": "test-token"
+                    }
+                  }
+                }
+              }
+            }
           </script>
         `,
       })
@@ -172,15 +178,13 @@ describe('parseListingData', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       'https://api.kufar.by/search-api/v2/item/1078366830/phone',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          authorization: 'Bearer test-token',
-          'x-app-name': 'Web Kufar',
-          'x-app-request-source': 'ad_view',
-          'x-pulse-environment-id': 'pulse-123',
-          'x-rudder-anonymous-id': 'rudder-456',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            authorization: 'Bearer test-token',
+            'x-app-name': 'Web Kufar',
+            'x-app-request-source': 'ad_view',
+          }),
         }),
-      }),
     );
   });
 
@@ -196,6 +200,7 @@ describe('parseListingData', () => {
         return {
           ok: false,
           status: 401,
+          text: async () => 'unauthorized',
           json: async () => ({ message: 'unauthorized' }),
         };
       }
@@ -204,14 +209,18 @@ describe('parseListingData', () => {
         return {
           ok: true,
           text: async () => `
-            <script>
-              window.__INITIAL_STATE__ = {
-                "authorization": "Bearer env-test-token",
-                "x-app-name": "Web Kufar",
-                "x-app-request-source": "ad_view",
-                "x-pulse-environment-id": "pulse-123",
-                "x-rudder-anonymous-id": "rudder-456"
-              };
+            <script id="__NEXT_DATA__" type="application/json">
+              {
+                "props": {
+                  "initialState": {
+                    "user": {
+                      "login": {
+                        "jwt": "env-test-token"
+                      }
+                    }
+                  }
+                }
+              }
             </script>
           `,
         };
@@ -234,15 +243,13 @@ describe('parseListingData', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       'https://api.kufar.by/search-api/v2/item/1078366830/phone',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          authorization: 'Bearer env-test-token',
-          'x-app-name': 'Web Kufar',
-          'x-app-request-source': 'ad_view',
-          'x-pulse-environment-id': 'pulse-123',
-          'x-rudder-anonymous-id': 'rudder-456',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            authorization: 'Bearer env-test-token',
+            'x-app-name': 'Web Kufar',
+            'x-app-request-source': 'ad_view',
+          }),
         }),
-      }),
     );
 
   });

@@ -65,8 +65,38 @@ function readHeaderFromHtml(html: string, keyPattern: RegExp, valuePattern?: Reg
   return null;
 }
 
+function extractNextDataJson(html: string) {
+  const match = html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!match?.[1]) return null;
+
+  try {
+    return JSON.parse(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function getNestedString(root: unknown, path: string[]) {
+  let current: any = root;
+
+  for (const key of path) {
+    if (!current || typeof current !== "object" || !(key in current)) {
+      return null;
+    }
+    current = current[key];
+  }
+
+  return normalizeHeaderValue(current);
+}
+
 export function extractKufarPhoneAuthHeaders(html: string): KufarPhoneAuthHeaders | null {
+  const nextData = extractNextDataJson(html);
+  const authorizationFromNextData = nextData
+    ? getNestedString(nextData, ["props", "initialState", "user", "login", "jwt"])
+    : null;
+
   const authorization =
+    authorizationFromNextData ??
     readHeaderFromHtml(
       html,
       /authorization/i,
@@ -253,6 +283,9 @@ export async function fetchKufarPhone(id: string, authHeaders?: KufarPhoneAuthHe
       return normalizePhoneList(data?.phone);
     }
 
+    const responseBody = await res.text().catch(() => "");
+    const responseSummary = responseBody.trim().slice(0, 300);
+
     if (res.status === 401 && !triedAuthDiscovery) {
       triedAuthDiscovery = true;
       try {
@@ -279,7 +312,8 @@ export async function fetchKufarPhone(id: string, authHeaders?: KufarPhoneAuthHe
     }
 
     if (attempt === 2) {
-      throw new Error(`Failed to fetch phone for item ${id}: HTTP ${res.status}`);
+      const summarySuffix = responseSummary ? `; body: ${responseSummary}` : "";
+      throw new Error(`Failed to fetch phone for item ${id}: HTTP ${res.status}${summarySuffix}`);
     }
 
     await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
