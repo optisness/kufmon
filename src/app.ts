@@ -1,7 +1,7 @@
 ﻿import Fastify from "fastify";
 import fastifyFormbody from "@fastify/formbody";
 import { prisma } from "./db.js";
-import { backfillKufarSellerPhonesForToday, fetchKufarMap, saveKufarAds, KUFAR_CATEGORIES } from "./kufar.js";
+import { fetchKufarMap, saveKufarAds, KUFAR_CATEGORIES } from "./kufar.js";
 import { startCron } from "./cron.js";
 import { sendTrackedTelegram } from "./telegram.js";
 import { logger } from "./logger.js";
@@ -125,7 +125,6 @@ function parseListingsFilterState(query: Record<string, unknown>) {
     priceMin: parseOptionalNumber(query.priceMin),
     priceMax: parseOptionalNumber(query.priceMax),
     sellerText: typeof query.sellerText === "string" ? query.sellerText.trim() : "",
-    phoneText: typeof query.phoneText === "string" ? query.phoneText.trim() : "",
   };
 }
 
@@ -161,15 +160,6 @@ function buildListingsWhere(filters: ReturnType<typeof parseListingsFilterState>
     andConditions.push({
       sellerName: {
         contains: filters.sellerText,
-        mode: "insensitive",
-      },
-    });
-  }
-
-  if (filters.phoneText) {
-    andConditions.push({
-      sellerPhone: {
-        contains: filters.phoneText,
         mode: "insensitive",
       },
     });
@@ -257,24 +247,6 @@ function formatSellerLabel(value: unknown) {
     .trim();
 
   return cleaned || "—";
-}
-
-function formatPhoneCell(phone: unknown, status?: unknown) {
-  const phoneText = String(phone ?? "").trim();
-  const phoneStatus = String(status ?? "").trim();
-
-  if (phoneStatus === "blocked_by_ip") {
-    return `<span title="blocked_by_ip" style="color:#c0392b; font-size:13px; font-weight:700; line-height:1;">⛔</span>`;
-  }
-
-  const phones = phoneText
-    .split(/\s*,\s*/)
-    .map((phoneValue) => phoneValue.trim())
-    .filter(Boolean);
-
-  if (phones.length === 0) return "—";
-
-  return phones.map((phoneValue) => escapeHtml(phoneValue)).join("<br />");
 }
 
 function formatDateTime(value: string | Date | null | undefined) {
@@ -476,7 +448,6 @@ function renderAdminLayout(options: {
     .page-card h3 { margin-top:0; }
     .page-card a { color:#007bff; text-decoration:none; }
     .page-card a:hover { text-decoration:underline; }
-    .phone-cell { font-size: 12px; line-height: 1.35; white-space: normal; }
     .pagination { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid #e6e6e6; flex-wrap:wrap; }
     .pagination-summary { color:#666; font-size:14px; }
     .pagination-links { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
@@ -718,9 +689,6 @@ function renderHealthPage(options: {
           <p><strong>${Math.floor(options.status.uptime)}s</strong></p>
         </div>
       </div>
-      <form method="POST" action="/kufar/backfill-phones-today" style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button type="submit" class="btn-primary" style="display:inline-flex; align-items:center; justify-content:center;">Обновить телефоны у новых объявлений за сегодня</button>
-      </form>
       <div style="margin-top:16px; color:#666;">
         <p><strong>Public:</strong> <code>/health</code></p>
         <p><strong>Protected debug:</strong> <code>/metrics</code>, <code>/kufar</code>, <code>/sync</code></p>
@@ -1262,10 +1230,6 @@ function renderListingsPage(options: {
             <input name="sellerText" value="${escapeHtml(options.filters.sellerText ?? "")}" placeholder="Ирина, агентство..." />
           </div>
           <div class="form-group">
-            <label>По телефону</label>
-            <input name="phoneText" value="${escapeHtml(options.filters.phoneText ?? "")}" placeholder="37529..." />
-          </div>
-          <div class="form-group">
             <label>Цена от</label>
             <input name="priceMin" type="number" value="${escapeHtml(options.filters.priceMin ?? "")}" />
           </div>
@@ -1291,7 +1255,6 @@ function renderListingsPage(options: {
             ${renderSortableHeader("Кат", "category", "string", options.currentSort)}
             ${renderSortableHeader("Тип", "seller", "string", options.currentSort)}
             <th>Seller</th>
-            <th>Tel</th>
             ${renderSortableHeader("Цена", "price", "number", options.currentSort)}
             ${renderSortableHeader("Room", "rooms", "number", options.currentSort, "center-column")}
             <th class="sortable attempt-column" data-sortable="true" data-sort-type="number" data-sort-key="missingCount"${options.currentSort?.key === "missingCount" ? ` data-sort-dir="${options.currentSort.direction}"` : ""}>Err</th>
@@ -1315,7 +1278,6 @@ function renderListingsPage(options: {
               <td><span class="compact-badge category">${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</span></td>
               <td><span class="compact-badge ${escapeHtml(l.sellerType === "company" ? "company" : l.sellerType === "private" ? "private" : "unknown")}">${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</span></td>
               <td>${escapeHtml(formatSellerLabel(l.sellerName))}</td>
-              <td class="phone-cell">${formatPhoneCell(l.sellerPhone, l.sellerPhoneStatus)}</td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td class="center-column">${l.rooms ?? "-"}</td>
               <td class="attempt-column">${escapeHtml(formatListingAttemptCount(l.missingCount))}</td>
@@ -1414,30 +1376,6 @@ app.get("/sync", async (req: any) => {
     synced: count,
   };
 });
-
-async function handleBackfillPhonesToday(_req: any, reply: any) {
-  if (kufarPhoneBackfillRunning) {
-    reply.redirect("/health?notice=" + encodeURIComponent("Обновление телефонов уже запущено в фоне."));
-    return;
-  }
-
-  kufarPhoneBackfillRunning = true;
-  void (async () => {
-    try {
-      const result = await backfillKufarSellerPhonesForToday();
-      logger.info({ result }, "Kufar phone backfill finished");
-    } catch (error) {
-      logger.warn({ error }, "Kufar phone backfill failed");
-    } finally {
-      kufarPhoneBackfillRunning = false;
-    }
-  })();
-
-  reply.redirect("/health?notice=" + encodeURIComponent("Обновление телефонов запущено в фоне. Результат будет в логах."));
-}
-
-app.get("/kufar/backfill-phones-today", handleBackfillPhonesToday);
-app.post("/kufar/backfill-phones-today", handleBackfillPhonesToday);
 
 app.post("/login", async (req: any, reply) => {
   const password = String(req.body?.password ?? "").trim();

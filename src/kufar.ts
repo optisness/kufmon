@@ -7,10 +7,7 @@ import { formatTelegramBatchMessage, splitTelegramMessageChunks, type TelegramEv
 import {
   extractListingDetails,
   extractSellerDetails,
-  extractKufarPhoneAuthHeaders,
   fetchKufarItem,
-  fetchKufarPhone,
-  fetchKufarPhoneResult,
 } from "./kufarItem.js";
 import {
   buildChangedEventPayload,
@@ -275,23 +272,13 @@ async function enrichNewListingSnapshot(
 ) {
   try {
     const html = await fetchKufarItem(id);
-    const phoneAuthHeaders = extractKufarPhoneAuthHeaders(html);
-    let phoneResult = { phone: null as string | null, blockedByIp: false };
-
-    try {
-      phoneResult = await fetchKufarPhoneResult(id, phoneAuthHeaders);
-    } catch (phoneError) {
-      logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
-    }
-
     const details = extractListingDetails(html);
 
     return {
       ...snapshot,
       address: details.address ?? snapshot.address ?? null,
       fullDescription: details.fullDescription ?? snapshot.description,
-      sellerPhone: phoneResult.phone,
-      ...(phoneResult.blockedByIp ? { sellerPhoneStatus: "blocked_by_ip" } : {}),
+      sellerPhone: null,
       imageUrls: details.imageUrls.length > 0
         ? details.imageUrls
         : snapshot.imageUrl
@@ -301,43 +288,27 @@ async function enrichNewListingSnapshot(
   } catch (error) {
     logger.warn({ id, error }, "Failed to enrich new listing snapshot");
 
-    let phoneResult = { phone: null as string | null, blockedByIp: false };
-    try {
-      phoneResult = await fetchKufarPhoneResult(id);
-    } catch (phoneError) {
-      logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
-    }
-
     return {
       ...snapshot,
       fullDescription: snapshot.description,
-      sellerPhone: phoneResult.phone,
-      ...(phoneResult.blockedByIp ? { sellerPhoneStatus: "blocked_by_ip" } : {}),
+      sellerPhone: null,
       imageUrls: snapshot.imageUrl ? [snapshot.imageUrl] : [],
     };
   }
 }
 
 function buildListingWriteData(
-  snapshot: ReturnType<typeof normalizeKufarListing> & { sellerPhone?: string | null; sellerPhoneStatus?: string | null },
+  snapshot: ReturnType<typeof normalizeKufarListing> & { sellerPhone?: string | null },
   existing: any,
   syncTime: Date,
 ) {
-  const sellerPhoneStatus =
-    snapshot.sellerPhoneStatus !== undefined
-      ? snapshot.sellerPhoneStatus
-      : existing?.sellerPhoneStatus !== undefined
-        ? existing.sellerPhoneStatus
-        : undefined;
-
   return {
     title: snapshot.title,
     price: snapshot.price,
     category: snapshot.category,
     sellerType: snapshot.sellerType,
     sellerName: snapshot.sellerName,
-    sellerPhone: snapshot.sellerPhone ?? existing?.sellerPhone ?? null,
-    ...(sellerPhoneStatus !== undefined ? { sellerPhoneStatus } : {}),
+    sellerPhone: null,
     description: snapshot.description,
     imageUrl: snapshot.imageUrl,
     rooms: snapshot.rooms,
@@ -863,8 +834,6 @@ export async function backfillKufarSellerInfo() {
     select: {
       id: true,
       sellerName: true,
-      sellerPhone: true,
-      sellerPhoneStatus: true,
     },
   });
 
@@ -876,15 +845,13 @@ export async function backfillKufarSellerInfo() {
     scanned += 1;
 
     const needsSellerName = !String(listing.sellerName ?? "").trim();
-    const needsPhone = !String(listing.sellerPhone ?? "").trim() && listing.sellerPhoneStatus !== "blocked_by_ip";
-
-    if (!needsSellerName && !needsPhone) {
+    if (!needsSellerName) {
       continue;
     }
 
     matched += 1;
 
-    const nextData: { sellerName?: string | null; sellerPhone?: string | null; sellerPhoneStatus?: string | null } = {};
+    const nextData: { sellerName?: string | null } = {};
 
     if (needsSellerName) {
       try {
@@ -898,19 +865,6 @@ export async function backfillKufarSellerInfo() {
       }
     }
 
-    if (needsPhone) {
-      try {
-        const phoneResult = await fetchKufarPhoneResult(listing.id);
-        if (phoneResult.blockedByIp) {
-          nextData.sellerPhoneStatus = "blocked_by_ip";
-        } else if (phoneResult.phone) {
-          nextData.sellerPhone = phoneResult.phone;
-        }
-      } catch (error) {
-        logger.warn({ id: listing.id, error }, "Failed to backfill seller phone");
-      }
-    }
-
     if (Object.keys(nextData).length === 0) {
       continue;
     }
@@ -920,88 +874,6 @@ export async function backfillKufarSellerInfo() {
       data: nextData,
     });
     updated += 1;
-  }
-
-  return {
-    scanned,
-    matched,
-    updated,
-  };
-}
-
-export async function backfillKufarSellerPhonesForToday() {
-  const { start, end } = getMinskDayRange();
-
-  const existingListings = await prisma.listing.findMany({
-    where: {
-      isActive: true,
-      source: { in: [KUFAR_SOURCE, "kufar"] },
-      events: {
-        some: {
-          eventType: "NEW",
-          createdAt: {
-            gte: start,
-            lt: end,
-          },
-        },
-      },
-    },
-    select: {
-      id: true,
-      sellerPhone: true,
-      sellerPhoneStatus: true,
-      events: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: {
-          createdAt: true,
-        },
-      },
-    },
-  });
-
-  let scanned = 0;
-  let matched = 0;
-  let updated = 0;
-
-  for (const listing of existingListings) {
-    scanned += 1;
-    matched += 1;
-
-    try {
-      if (listing.sellerPhoneStatus === "blocked_by_ip") {
-        continue;
-      }
-
-      const phoneResult = await fetchKufarPhoneResult(listing.id);
-      if (phoneResult.blockedByIp) {
-        await prisma.listing.update({
-          where: { id: listing.id },
-          data: {
-            sellerPhoneStatus: "blocked_by_ip",
-          },
-        });
-        updated += 1;
-        continue;
-      }
-
-      if (!phoneResult.phone) {
-        continue;
-      }
-
-      await prisma.listing.update({
-        where: { id: listing.id },
-        data: {
-          sellerPhone: phoneResult.phone,
-        },
-      });
-      updated += 1;
-    } catch (error) {
-      logger.warn(
-        { id: listing.id, ...formatErrorDetails(error) },
-        "Failed to backfill seller phone for today's active listing",
-      );
-    }
   }
 
   return {

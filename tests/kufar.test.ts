@@ -38,7 +38,6 @@ let fetchKufarMap: any;
 let saveKufarAds: any;
 let backfillKufarSourcePrices: any;
 let backfillKufarSellerInfo: any;
-let backfillKufarSellerPhonesForToday: any;
 let buildKufarSearchUrl: any;
 
 beforeAll(async () => {
@@ -47,7 +46,6 @@ beforeAll(async () => {
   saveKufarAds = module.saveKufarAds;
   backfillKufarSourcePrices = module.backfillKufarSourcePrices;
   backfillKufarSellerInfo = module.backfillKufarSellerInfo;
-  backfillKufarSellerPhonesForToday = module.backfillKufarSellerPhonesForToday;
   buildKufarSearchUrl = module.buildKufarSearchUrl;
 });
 
@@ -169,7 +167,7 @@ describe('Kufar sync', () => {
     });
   });
 
-  it('backfills seller name and phone for existing Kufar listings', async () => {
+  it('backfills seller name for existing Kufar listings', async () => {
     prismaMock.listing.findMany.mockResolvedValue([
       { id: '1', sellerName: null, sellerPhone: null },
     ]);
@@ -216,112 +214,6 @@ describe('Kufar sync', () => {
       where: { id: '1' },
       data: {
         sellerName: "Агентство недвижимости ''Юриэлт'' г.Гродно, Наталия",
-        sellerPhone: '375298187308',
-      },
-    });
-  });
-
-  it('backfills phones for active listings whose latest event happened today', async () => {
-    prismaMock.listing.findMany.mockResolvedValue([
-      {
-        id: '1',
-        sellerPhone: null,
-        events: [{ createdAt: new Date() }],
-      },
-    ]);
-    prismaMock.listing.update.mockResolvedValue({ id: '1' });
-
-    installFetchMock([
-      {
-        ok: true,
-        json: async () => ({
-          phone: '375291234567',
-        }),
-      },
-    ]);
-
-    const result = await backfillKufarSellerPhonesForToday();
-
-    expect(result).toEqual({
-      scanned: 1,
-      matched: 1,
-      updated: 1,
-    });
-    expect(prismaMock.listing.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          events: expect.objectContaining({
-            some: expect.objectContaining({
-              eventType: 'NEW',
-            }),
-          }),
-        }),
-      }),
-    );
-    expect(prismaMock.listing.update).toHaveBeenCalledWith({
-      where: { id: '1' },
-      data: {
-        sellerPhone: '375291234567',
-      },
-    });
-  });
-
-  it('backfills phones even when the stored phone is an empty string', async () => {
-    prismaMock.listing.findMany.mockResolvedValue([
-      {
-        id: '2',
-        sellerPhone: '',
-        events: [{ createdAt: new Date() }],
-      },
-    ]);
-    prismaMock.listing.update.mockResolvedValue({ id: '2' });
-
-    installFetchMock([
-      {
-        ok: true,
-        json: async () => ({
-          phone: '375299998877',
-        }),
-      },
-    ]);
-
-    const result = await backfillKufarSellerPhonesForToday();
-
-    expect(result.updated).toBe(1);
-    expect(prismaMock.listing.update).toHaveBeenCalledWith({
-      where: { id: '2' },
-      data: {
-        sellerPhone: '375299998877',
-      },
-    });
-  });
-
-  it('rewrites the phone number even when it matches the stored value', async () => {
-    prismaMock.listing.findMany.mockResolvedValue([
-      {
-        id: '3',
-        sellerPhone: '375311112233',
-        events: [{ createdAt: new Date() }],
-      },
-    ]);
-    prismaMock.listing.update.mockResolvedValue({ id: '3' });
-
-    installFetchMock([
-      {
-        ok: true,
-        json: async () => ({
-          phone: '375311112233',
-        }),
-      },
-    ]);
-
-    const result = await backfillKufarSellerPhonesForToday();
-
-    expect(result.updated).toBe(1);
-    expect(prismaMock.listing.update).toHaveBeenCalledWith({
-      where: { id: '3' },
-      data: {
-        sellerPhone: '375311112233',
       },
     });
   });
@@ -477,7 +369,7 @@ describe('Kufar sync', () => {
 
     const createdEvent = prismaMock.adEvent.create.mock.calls[0]?.[0]?.data;
 
-    expect(createdEvent?.changesJson?.snapshot?.sellerPhone).toBe('375291112233');
+    expect(createdEvent?.changesJson?.snapshot?.sellerPhone).toBe(null);
   });
 
   it('preserves the address from the search result when the item page does not include it', async () => {
@@ -645,7 +537,7 @@ describe('Kufar sync', () => {
     const result = await saveKufarAds();
 
     expect(result).toBe(2);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(String(fetchMock.mock.calls[1]?.[0] ?? '')).toContain('cursor=cursor-page-2');
     expect(prismaMock.listing.create).toHaveBeenCalledTimes(2);
     expect(prismaMock.adEvent.create).toHaveBeenCalledTimes(2);

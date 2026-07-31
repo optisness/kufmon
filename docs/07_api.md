@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Partially implemented (service provides a minimal set of endpoints)
-**Last updated:** 2026-07-29
+**Last updated:** 2026-07-31
 
 ---
 
@@ -28,17 +28,16 @@ Current implementation notes:
 - The listings table keeps long titles readable by wrapping them into a compact multi-line cell instead of stretching the layout.
 - The listings page also shows the `missingCount` column, which represents consecutive failed sync attempts before a listing becomes `REMOVED`.
 - The listings page now also shows and sorts by the timestamp of the latest `NEW` / `CHANGED` / `REMOVED` event, so operators can quickly see how recently a listing changed.
-- The `Tel` column renders one or more phone numbers on separate lines in a smaller font so multi-number listings stay compact.
 - The `Seller` column trims common legal prefixes such as `ООО` and `Агентство недвижимости` so the listing table stays readable.
-- The `NEW` history payload includes the normalized snapshot plus the full address, seller display name, seller phone, full description, and all photo URLs, but those extra fields are only used in the admin history view.
+- The `NEW` history payload includes the normalized snapshot plus the full address, seller display name, full description, and all photo URLs, but those extra fields are only used in the admin history view.
 - The history page formats timestamps in Minsk time (`Europe/Minsk`) and renders `NEW` event photos as a thumbnail gallery with a lightbox and arrow navigation.
 - Address extraction for `NEW` history events uses the structured `address` field from the Kufar listing response, so the history view can show it as a separate line without HTML parsing.
-- Seller extraction for `NEW` history events uses the structured `account_parameters` / `ad_parameters` fields: private sellers show their name, and company sellers show the agency name plus contact person when present. The sync also fetches the item phone endpoint for new listings and stores that number for the history view and admin table. The phone request mirrors the browser request shape, can reuse the bearer token discovered from the item page `__NEXT_DATA__` payload (`props.initialState.user.login.jwt`), and also supports `KUFAR_PHONE_REQUEST_HEADERS_JSON` or the individual `KUFAR_PHONE_AUTHORIZATION` / `KUFAR_PHONE_X_*` env overrides when manual browser-session configuration is needed. The request now also carries browser-like `X-App-Version`, `X-Product-Type`, and stable `X-Device-ID` / `X-Pulse-Environment-ID` / `X-Rudder-Anonymous-ID` values, because Kufar rejects a plain token-only request for protected listings. When Kufar returns `ASR0009`, the listing is marked as `blocked_by_ip` and the service stops retrying that phone fetch.
+- Seller extraction for `NEW` history events uses the structured `account_parameters` / `ad_parameters` fields: private sellers show their name, and company sellers show the agency name plus contact person when present. The phone collection flow has been disabled, so the admin UI no longer depends on the item phone endpoint.
 - Full descriptions are taken from the Kufar listing page HTML `itemprop="description"` block, which preserves the longer text shown on the detail page.
 - Telegram delivery attempts are stored in `TelegramDeliveryLog` and the admin UI exposes them on `/ui/telegram-deliveries` with timestamp, user label, subscription name, chat ID, purpose, result, status code, and error text. The page supports filtering by user and by delivery result.
 - `/health` is public so Render can probe it without a session cookie. In the browser it renders a status page with navigation; JSON is still available via `?format=json` or an `application/json` accept header.
 - `/metrics` and `/kufar` remain protected debug endpoints and are not shown in the main navigation. `metrics` returns uptime plus a few counters; `kufar` returns the raw Kufar search payload.
-- `/kufar/backfill-phones-today` is a protected operator endpoint that starts a background maintenance job refreshing seller phone numbers for active Kufar `NEW` listings whose event date is today. If Kufar returns a phone, the stored value is rewritten even when it matches the previous one. The Health page exposes a one-click `POST` button for that maintenance task and returns immediately with a status note. The backfill uses the same phone request logic, including browser-style auth fallback when available.
+- The dedicated phone refresh operator endpoint and the health-page refresh button were removed.
 - Admin login attempts are rate-limited: three wrong passwords lock the form for five minutes and trigger a Telegram notification to the admin.
 
 Future deployments may target Cloud Run, Docker, or other runtimes without changing the contract.
