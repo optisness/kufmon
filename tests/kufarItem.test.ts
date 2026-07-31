@@ -1,14 +1,21 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   extractKufarPhoneAuthHeaders,
   extractListingDetails,
   extractSellerDetails,
   fetchKufarPhone,
+  resetKufarPhoneAuthHeadersCache,
   parseListingData,
   parseSellerType,
 } from '../src/kufarItem.js';
 
 describe('parseListingData', () => {
+  afterEach(() => {
+    delete process.env.KUFAR_PHONE_X_APP_NAME;
+    resetKufarPhoneAuthHeadersCache();
+    vi.unstubAllGlobals();
+  });
+
   it('parses title, price, rooms and area from html', () => {
     const html = `
       <html>
@@ -175,6 +182,69 @@ describe('parseListingData', () => {
         }),
       }),
     );
+  });
+
+  it('still discovers auth from item html when env contains only partial phone headers', async () => {
+    process.env.KUFAR_PHONE_X_APP_NAME = 'Web Kufar';
+
+    let callIndex = 0;
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      callIndex += 1;
+      const url = String(input);
+
+      if (callIndex === 1 && url.includes('/phone')) {
+        return {
+          ok: false,
+          status: 401,
+          json: async () => ({ message: 'unauthorized' }),
+        };
+      }
+
+      if (callIndex === 2 && !url.includes('/phone')) {
+        return {
+          ok: true,
+          text: async () => `
+            <script>
+              window.__INITIAL_STATE__ = {
+                "authorization": "Bearer env-test-token",
+                "x-app-name": "Web Kufar",
+                "x-app-request-source": "ad_view",
+                "x-pulse-environment-id": "pulse-123",
+                "x-rudder-anonymous-id": "rudder-456"
+              };
+            </script>
+          `,
+        };
+      }
+
+      if (callIndex === 3 && url.includes('/phone')) {
+        return {
+          ok: true,
+          json: async () => ({ phone: '375298187308' }),
+        };
+      }
+
+      throw new Error(`Unexpected fetch call ${callIndex} to ${url}`);
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchKufarPhone('1078366830')).resolves.toBe('375298187308');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'https://api.kufar.by/search-api/v2/item/1078366830/phone',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: 'Bearer env-test-token',
+          'x-app-name': 'Web Kufar',
+          'x-app-request-source': 'ad_view',
+          'x-pulse-environment-id': 'pulse-123',
+          'x-rudder-anonymous-id': 'rudder-456',
+        }),
+      }),
+    );
+
   });
 
   it('extracts seller name and contact person from the item html json', () => {

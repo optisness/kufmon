@@ -32,6 +32,13 @@ type KufarPhoneAuthHeaders = {
 const cachedKufarPhoneAuthHeaders: KufarPhoneAuthHeaders = {};
 let hasCachedKufarPhoneAuthHeaders = false;
 
+export function resetKufarPhoneAuthHeadersCache() {
+  for (const key of Object.keys(cachedKufarPhoneAuthHeaders)) {
+    delete cachedKufarPhoneAuthHeaders[key as keyof KufarPhoneAuthHeaders];
+  }
+  hasCachedKufarPhoneAuthHeaders = false;
+}
+
 function normalizeHeaderValue(value: unknown) {
   const text = String(value ?? "").trim();
   return text.length > 0 ? text : null;
@@ -134,6 +141,10 @@ function mergeKufarPhoneAuthHeaders(
   return Object.keys(merged).length > 0 ? merged : null;
 }
 
+function hasKufarPhoneAuthorization(headers: KufarPhoneAuthHeaders | null) {
+  return Boolean(headers?.authorization && String(headers.authorization).trim().length > 0);
+}
+
 function rememberKufarPhoneAuthHeaders(headers: KufarPhoneAuthHeaders | null) {
   if (!headers) return;
 
@@ -177,14 +188,15 @@ async function resolveKufarPhoneAuthHeaders(id: string) {
   const cachedHeaders = hasCachedKufarPhoneAuthHeaders ? cachedKufarPhoneAuthHeaders : null;
   const merged = mergeKufarPhoneAuthHeaders(envHeaders, cachedHeaders);
 
-  if (merged) {
+  if (hasKufarPhoneAuthorization(merged)) {
     return merged;
   }
 
   const html = await fetchKufarItem(id);
   const extracted = extractKufarPhoneAuthHeaders(html);
-  rememberKufarPhoneAuthHeaders(extracted);
-  return extracted;
+  const combined = mergeKufarPhoneAuthHeaders(merged, extracted);
+  rememberKufarPhoneAuthHeaders(combined);
+  return combined;
 }
 
 export async function fetchKufarPhone(id: string, authHeaders?: KufarPhoneAuthHeaders | null) {

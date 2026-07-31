@@ -29,6 +29,7 @@ Current implementation notes:
 - The listings page also shows the `missingCount` column, which represents consecutive failed sync attempts before a listing becomes `REMOVED`.
 - The listings page now also shows and sorts by the timestamp of the latest `NEW` / `CHANGED` / `REMOVED` event, so operators can quickly see how recently a listing changed.
 - The `Tel` column renders one or more phone numbers on separate lines in a smaller font so multi-number listings stay compact.
+- The `Seller` column trims common legal prefixes such as `ООО` and `Агентство недвижимости` so the listing table stays readable.
 - The `NEW` history payload includes the normalized snapshot plus the full address, seller display name, seller phone, full description, and all photo URLs, but those extra fields are only used in the admin history view.
 - The history page formats timestamps in Minsk time (`Europe/Minsk`) and renders `NEW` event photos as a thumbnail gallery with a lightbox and arrow navigation.
 - Address extraction for `NEW` history events uses the structured `address` field from the Kufar listing response, so the history view can show it as a separate line without HTML parsing.

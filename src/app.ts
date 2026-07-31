@@ -241,11 +241,16 @@ function formatSellerLabel(value: unknown) {
   const text = String(value ?? "").trim();
   if (!text) return "—";
 
-  return text
-    .replace(/\bООО\b\.?\s*/gi, "")
-    .replace(/\bАгентство недвижимости\b\s*/gi, "")
+  const cleaned = text
+    .replace(/\bООО\b\.?\s*/giu, "")
+    .replace(/\bАгентство недвижимости\b[\s,;:-]*/giu, "")
+    .replace(/\bОбщество с ограниченной ответственностью\b[\s,;:-]*/giu, "")
     .replace(/\s{2,}/g, " ")
-    .trim() || "—";
+    .replace(/^[,\s-]+/g, "")
+    .replace(/[,;\s-]+$/g, "")
+    .trim();
+
+  return cleaned || "—";
 }
 
 function formatPhoneList(value: unknown) {
