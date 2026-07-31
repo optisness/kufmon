@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { extractListingDetails, extractSellerDetails, fetchKufarPhone, parseListingData, parseSellerType } from '../src/kufarItem.js';
+import {
+  extractKufarPhoneAuthHeaders,
+  extractListingDetails,
+  extractSellerDetails,
+  fetchKufarPhone,
+  parseListingData,
+  parseSellerType,
+} from '../src/kufarItem.js';
 
 describe('parseListingData', () => {
   it('parses title, price, rooms and area from html', () => {
@@ -102,6 +109,72 @@ describe('parseListingData', () => {
 
     await expect(fetchKufarPhone('1078366830')).resolves.toBe('375336195495, 375336703483');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('extracts Kufar phone auth headers from item html', () => {
+    const html = `
+      <script>
+        window.__INITIAL_STATE__ = {
+          "authorization": "Bearer test-token",
+          "x-app-name": "Web Kufar",
+          "x-app-request-source": "ad_view",
+          "x-pulse-environment-id": "pulse-123",
+          "x-rudder-anonymous-id": "rudder-456"
+        };
+      </script>
+    `;
+
+    expect(extractKufarPhoneAuthHeaders(html)).toEqual({
+      authorization: 'Bearer test-token',
+      'x-app-name': 'Web Kufar',
+      'x-app-request-source': 'ad_view',
+      'x-pulse-environment-id': 'pulse-123',
+      'x-rudder-anonymous-id': 'rudder-456',
+    });
+  });
+
+  it('retries the phone endpoint with auth discovered from the item html after unauthorized response', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: 'unauthorized' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => `
+          <script>
+            window.__INITIAL_STATE__ = {
+              "authorization": "Bearer test-token",
+              "x-app-name": "Web Kufar",
+              "x-app-request-source": "ad_view",
+              "x-pulse-environment-id": "pulse-123",
+              "x-rudder-anonymous-id": "rudder-456"
+            };
+          </script>
+        `,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ phone: '375298187308' }),
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchKufarPhone('1078366830')).resolves.toBe('375298187308');
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'https://api.kufar.by/search-api/v2/item/1078366830/phone',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: 'Bearer test-token',
+          'x-app-name': 'Web Kufar',
+          'x-app-request-source': 'ad_view',
+          'x-pulse-environment-id': 'pulse-123',
+          'x-rudder-anonymous-id': 'rudder-456',
+        }),
+      }),
+    );
   });
 
   it('extracts seller name and contact person from the item html json', () => {

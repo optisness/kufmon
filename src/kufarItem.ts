@@ -21,8 +21,175 @@ export async function fetchKufarItem(id: string) {
   }
 }
 
-export async function fetchKufarPhone(id: string) {
+type KufarPhoneAuthHeaders = {
+  authorization?: string;
+  "x-app-name"?: string;
+  "x-app-request-source"?: string;
+  "x-pulse-environment-id"?: string;
+  "x-rudder-anonymous-id"?: string;
+};
+
+const cachedKufarPhoneAuthHeaders: KufarPhoneAuthHeaders = {};
+let hasCachedKufarPhoneAuthHeaders = false;
+
+function normalizeHeaderValue(value: unknown) {
+  const text = String(value ?? "").trim();
+  return text.length > 0 ? text : null;
+}
+
+function normalizeAuthorizationHeader(value: string | null) {
+  if (!value) return null;
+  return /^Bearer\s+/i.test(value) ? value : `Bearer ${value}`;
+}
+
+function readHeaderFromHtml(html: string, keyPattern: RegExp, valuePattern?: RegExp) {
+  const directMatch = html.match(new RegExp(`["']${keyPattern.source}["']\\s*:\\s*["']([^"']+)["']`, "i"));
+  if (directMatch?.[1]) {
+    return normalizeHeaderValue(directMatch[1]);
+  }
+
+  if (valuePattern) {
+    const valueMatch = html.match(valuePattern);
+    if (valueMatch?.[1]) {
+      return normalizeHeaderValue(valueMatch[1]);
+    }
+  }
+
+  return null;
+}
+
+export function extractKufarPhoneAuthHeaders(html: string): KufarPhoneAuthHeaders | null {
+  const authorization =
+    readHeaderFromHtml(
+      html,
+      /authorization/i,
+      /\bauthorization\b\s*[:=]\s*(Bearer\s+[A-Za-z0-9._-]+(?:\.[A-Za-z0-9._-]+){2})/i,
+    ) ?? readHeaderFromHtml(html, /authorization/i, /\bBearer\s+([A-Za-z0-9._-]+(?:\.[A-Za-z0-9._-]+){2})/i);
+
+  const headers: KufarPhoneAuthHeaders = {};
+
+  const normalizedAuthorization = normalizeAuthorizationHeader(authorization);
+  if (normalizedAuthorization) {
+    headers.authorization = normalizedAuthorization;
+  }
+
+  const xAppName =
+    readHeaderFromHtml(html, /x[-_]?app[-_]?name/i) ??
+    readHeaderFromHtml(html, /xAppName/i);
+  if (xAppName) headers["x-app-name"] = xAppName;
+
+  const xAppRequestSource =
+    readHeaderFromHtml(html, /x[-_]?app[-_]?request[-_]?source/i) ??
+    readHeaderFromHtml(html, /xAppRequestSource/i);
+  if (xAppRequestSource) headers["x-app-request-source"] = xAppRequestSource;
+
+  const xPulseEnvironmentId =
+    readHeaderFromHtml(html, /x[-_]?pulse[-_]?environment[-_]?id/i) ??
+    readHeaderFromHtml(html, /xPulseEnvironmentId/i);
+  if (xPulseEnvironmentId) headers["x-pulse-environment-id"] = xPulseEnvironmentId;
+
+  const xRudderAnonymousId =
+    readHeaderFromHtml(html, /x[-_]?rudder[-_]?anonymous[-_]?id/i) ??
+    readHeaderFromHtml(html, /xRudderAnonymousId/i);
+  if (xRudderAnonymousId) headers["x-rudder-anonymous-id"] = xRudderAnonymousId;
+
+  return Object.keys(headers).length > 0 ? headers : null;
+}
+
+function readKufarPhoneAuthHeadersFromEnv() {
+  const authorization = normalizeAuthorizationHeader(
+    normalizeHeaderValue(process.env.KUFAR_PHONE_AUTHORIZATION),
+  );
+  const xAppName = normalizeHeaderValue(process.env.KUFAR_PHONE_X_APP_NAME);
+  const xAppRequestSource = normalizeHeaderValue(process.env.KUFAR_PHONE_X_APP_REQUEST_SOURCE);
+  const xPulseEnvironmentId = normalizeHeaderValue(process.env.KUFAR_PHONE_X_PULSE_ENVIRONMENT_ID);
+  const xRudderAnonymousId = normalizeHeaderValue(process.env.KUFAR_PHONE_X_RUDDER_ANONYMOUS_ID);
+
+  const headers: KufarPhoneAuthHeaders = {};
+
+  if (authorization) headers.authorization = authorization;
+  if (xAppName) headers["x-app-name"] = xAppName;
+  if (xAppRequestSource) headers["x-app-request-source"] = xAppRequestSource;
+  if (xPulseEnvironmentId) headers["x-pulse-environment-id"] = xPulseEnvironmentId;
+  if (xRudderAnonymousId) headers["x-rudder-anonymous-id"] = xRudderAnonymousId;
+
+  return Object.keys(headers).length > 0 ? headers : null;
+}
+
+function mergeKufarPhoneAuthHeaders(
+  ...sources: Array<KufarPhoneAuthHeaders | null | undefined>
+): KufarPhoneAuthHeaders | null {
+  const merged: KufarPhoneAuthHeaders = {};
+
+  for (const source of sources) {
+    if (!source) continue;
+    for (const [key, value] of Object.entries(source)) {
+      const headerValue = normalizeHeaderValue(value);
+      if (headerValue) {
+        merged[key as keyof KufarPhoneAuthHeaders] = headerValue;
+      }
+    }
+  }
+
+  return Object.keys(merged).length > 0 ? merged : null;
+}
+
+function rememberKufarPhoneAuthHeaders(headers: KufarPhoneAuthHeaders | null) {
+  if (!headers) return;
+
+  Object.assign(cachedKufarPhoneAuthHeaders, headers);
+  hasCachedKufarPhoneAuthHeaders = true;
+}
+
+function buildKufarPhoneRequestHeaders(id: string, authHeaders?: KufarPhoneAuthHeaders | null) {
+  const headers: Record<string, string> = {
+    accept: "application/json, text/plain, */*",
+    "accept-language": "ru-RU,ru;q=0.9",
+    "cache-control": "no-cache",
+    "content-type": "application/json",
+    dnt: "1",
+    origin: "https://re.kufar.by",
+    referer: `https://re.kufar.by/vi/${id}`,
+    "user-agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    "x-app-name": "Web Kufar",
+    "x-app-request-source": "ad_view",
+    "x-requested-with": "XMLHttpRequest",
+  };
+
+  if (authHeaders?.authorization) headers.authorization = authHeaders.authorization;
+  if (authHeaders?.["x-app-name"]) headers["x-app-name"] = authHeaders["x-app-name"];
+  if (authHeaders?.["x-app-request-source"]) {
+    headers["x-app-request-source"] = authHeaders["x-app-request-source"];
+  }
+  if (authHeaders?.["x-pulse-environment-id"]) {
+    headers["x-pulse-environment-id"] = authHeaders["x-pulse-environment-id"];
+  }
+  if (authHeaders?.["x-rudder-anonymous-id"]) {
+    headers["x-rudder-anonymous-id"] = authHeaders["x-rudder-anonymous-id"];
+  }
+
+  return headers;
+}
+
+async function resolveKufarPhoneAuthHeaders(id: string) {
+  const envHeaders = readKufarPhoneAuthHeadersFromEnv();
+  const cachedHeaders = hasCachedKufarPhoneAuthHeaders ? cachedKufarPhoneAuthHeaders : null;
+  const merged = mergeKufarPhoneAuthHeaders(envHeaders, cachedHeaders);
+
+  if (merged) {
+    return merged;
+  }
+
+  const html = await fetchKufarItem(id);
+  const extracted = extractKufarPhoneAuthHeaders(html);
+  rememberKufarPhoneAuthHeaders(extracted);
+  return extracted;
+}
+
+export async function fetchKufarPhone(id: string, authHeaders?: KufarPhoneAuthHeaders | null) {
   const url = `https://api.kufar.by/search-api/v2/item/${id}/phone`;
+  let triedAuthDiscovery = false;
 
   function normalizePhoneList(value: unknown) {
     const raw = String(value ?? "").trim();
@@ -45,15 +212,14 @@ export async function fetchKufarPhone(id: string) {
     let res: Response;
     try {
       res = await fetch(url, {
-        headers: {
-          accept: "application/json, text/plain, */*",
-          "accept-language": "ru-RU,ru;q=0.9",
-          origin: "https://re.kufar.by",
-          referer: `https://re.kufar.by/vi/${id}`,
-          "user-agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-          "x-requested-with": "XMLHttpRequest",
-        },
+        headers: buildKufarPhoneRequestHeaders(
+          id,
+          mergeKufarPhoneAuthHeaders(
+            readKufarPhoneAuthHeadersFromEnv(),
+            hasCachedKufarPhoneAuthHeaders ? cachedKufarPhoneAuthHeaders : null,
+            authHeaders,
+          ),
+        ),
         signal: controller.signal,
       });
     } catch (error) {
@@ -73,6 +239,22 @@ export async function fetchKufarPhone(id: string) {
     if (res.ok) {
       const data = await res.json();
       return normalizePhoneList(data?.phone);
+    }
+
+    if (res.status === 401 && !triedAuthDiscovery) {
+      triedAuthDiscovery = true;
+      try {
+        const resolvedAuthHeaders = await resolveKufarPhoneAuthHeaders(id);
+        if (resolvedAuthHeaders) {
+          rememberKufarPhoneAuthHeaders(resolvedAuthHeaders);
+          authHeaders = mergeKufarPhoneAuthHeaders(authHeaders, resolvedAuthHeaders);
+          if (authHeaders) {
+            continue;
+          }
+        }
+      } catch {
+        // If auth discovery fails, fall through to the normal retry logic.
+      }
     }
 
     if (res.status === 404 || res.status === 403 || res.status === 429) {

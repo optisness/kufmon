@@ -700,8 +700,8 @@ function renderHealthPage(options: {
           <p><strong>${Math.floor(options.status.uptime)}s</strong></p>
         </div>
       </div>
-      <form method="GET" action="/kufar/backfill-phones-today" style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button type="submit" class="btn-primary" style="display:inline-flex; align-items:center; justify-content:center;">Обновить телефоны за сегодня</button>
+      <form method="POST" action="/kufar/backfill-phones-today" style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
+        <button type="submit" class="btn-primary" style="display:inline-flex; align-items:center; justify-content:center;">Обновить телефоны у новых объявлений за сегодня</button>
       </form>
       <div style="margin-top:16px; color:#666;">
         <p><strong>Public:</strong> <code>/health</code></p>
@@ -1397,7 +1397,7 @@ app.get("/sync", async (req: any) => {
   };
 });
 
-app.get("/kufar/backfill-phones-today", async (_req: any, reply) => {
+async function handleBackfillPhonesToday(_req: any, reply: any) {
   if (kufarPhoneBackfillRunning) {
     reply.redirect("/health?notice=" + encodeURIComponent("Обновление телефонов уже запущено в фоне."));
     return;
@@ -1416,7 +1416,10 @@ app.get("/kufar/backfill-phones-today", async (_req: any, reply) => {
   })();
 
   reply.redirect("/health?notice=" + encodeURIComponent("Обновление телефонов запущено в фоне. Результат будет в логах."));
-});
+}
+
+app.get("/kufar/backfill-phones-today", handleBackfillPhonesToday);
+app.post("/kufar/backfill-phones-today", handleBackfillPhonesToday);
 
 app.post("/login", async (req: any, reply) => {
   const password = String(req.body?.password ?? "").trim();

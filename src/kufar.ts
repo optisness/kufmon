@@ -4,7 +4,13 @@ import { createLogger } from "./logger.js";
 import { incMetric } from "./metrics.js";
 import { matchesSubscriptionListing, normalizeSource } from "./subscriptions.js";
 import { formatTelegramBatchMessage, splitTelegramMessageChunks, type TelegramEventType } from "./telegramMessage.js";
-import { extractListingDetails, extractSellerDetails, fetchKufarItem, fetchKufarPhone } from "./kufarItem.js";
+import {
+  extractListingDetails,
+  extractSellerDetails,
+  extractKufarPhoneAuthHeaders,
+  fetchKufarItem,
+  fetchKufarPhone,
+} from "./kufarItem.js";
 import {
   buildChangedEventPayload,
   buildContentHash,
@@ -239,16 +245,17 @@ async function enrichNewListingSnapshot(
   id: string,
   snapshot: ReturnType<typeof normalizeKufarListing>,
 ) {
-  let phone: string | null = null;
-
-  try {
-    phone = await fetchKufarPhone(id);
-  } catch (phoneError) {
-    logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
-  }
-
   try {
     const html = await fetchKufarItem(id);
+    const phoneAuthHeaders = extractKufarPhoneAuthHeaders(html);
+    let phone: string | null = null;
+
+    try {
+      phone = await fetchKufarPhone(id, phoneAuthHeaders);
+    } catch (phoneError) {
+      logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
+    }
+
     const details = extractListingDetails(html);
 
     return {
@@ -264,6 +271,13 @@ async function enrichNewListingSnapshot(
     };
   } catch (error) {
     logger.warn({ id, error }, "Failed to enrich new listing snapshot");
+
+    let phone: string | null = null;
+    try {
+      phone = await fetchKufarPhone(id);
+    } catch (phoneError) {
+      logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
+    }
 
     return {
       ...snapshot,

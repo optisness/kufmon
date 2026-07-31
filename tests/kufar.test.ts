@@ -461,15 +461,15 @@ describe('Kufar sync', () => {
         }),
       },
       {
+        ok: false,
+        status: 500,
+        text: async () => 'error',
+      },
+      {
         ok: true,
         json: async () => ({
           phone: '375291112233',
         }),
-      },
-      {
-        ok: false,
-        status: 500,
-        text: async () => 'error',
       },
     ]);
 
