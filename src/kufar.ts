@@ -10,6 +10,7 @@ import {
   extractKufarPhoneAuthHeaders,
   fetchKufarItem,
   fetchKufarPhone,
+  fetchKufarPhoneResult,
 } from "./kufarItem.js";
 import {
   buildChangedEventPayload,
@@ -275,10 +276,10 @@ async function enrichNewListingSnapshot(
   try {
     const html = await fetchKufarItem(id);
     const phoneAuthHeaders = extractKufarPhoneAuthHeaders(html);
-    let phone: string | null = null;
+    let phoneResult = { phone: null as string | null, blockedByIp: false };
 
     try {
-      phone = await fetchKufarPhone(id, phoneAuthHeaders);
+      phoneResult = await fetchKufarPhoneResult(id, phoneAuthHeaders);
     } catch (phoneError) {
       logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
     }
@@ -289,7 +290,8 @@ async function enrichNewListingSnapshot(
       ...snapshot,
       address: details.address ?? snapshot.address ?? null,
       fullDescription: details.fullDescription ?? snapshot.description,
-      sellerPhone: phone,
+      sellerPhone: phoneResult.phone,
+      ...(phoneResult.blockedByIp ? { sellerPhoneStatus: "blocked_by_ip" } : {}),
       imageUrls: details.imageUrls.length > 0
         ? details.imageUrls
         : snapshot.imageUrl
@@ -299,9 +301,9 @@ async function enrichNewListingSnapshot(
   } catch (error) {
     logger.warn({ id, error }, "Failed to enrich new listing snapshot");
 
-    let phone: string | null = null;
+    let phoneResult = { phone: null as string | null, blockedByIp: false };
     try {
-      phone = await fetchKufarPhone(id);
+      phoneResult = await fetchKufarPhoneResult(id);
     } catch (phoneError) {
       logger.warn({ id, phoneError }, "Failed to fetch phone for new listing");
     }
@@ -309,17 +311,25 @@ async function enrichNewListingSnapshot(
     return {
       ...snapshot,
       fullDescription: snapshot.description,
-      sellerPhone: phone,
+      sellerPhone: phoneResult.phone,
+      ...(phoneResult.blockedByIp ? { sellerPhoneStatus: "blocked_by_ip" } : {}),
       imageUrls: snapshot.imageUrl ? [snapshot.imageUrl] : [],
     };
   }
 }
 
 function buildListingWriteData(
-  snapshot: ReturnType<typeof normalizeKufarListing> & { sellerPhone?: string | null },
+  snapshot: ReturnType<typeof normalizeKufarListing> & { sellerPhone?: string | null; sellerPhoneStatus?: string | null },
   existing: any,
   syncTime: Date,
 ) {
+  const sellerPhoneStatus =
+    snapshot.sellerPhoneStatus !== undefined
+      ? snapshot.sellerPhoneStatus
+      : existing?.sellerPhoneStatus !== undefined
+        ? existing.sellerPhoneStatus
+        : undefined;
+
   return {
     title: snapshot.title,
     price: snapshot.price,
@@ -327,6 +337,7 @@ function buildListingWriteData(
     sellerType: snapshot.sellerType,
     sellerName: snapshot.sellerName,
     sellerPhone: snapshot.sellerPhone ?? existing?.sellerPhone ?? null,
+    ...(sellerPhoneStatus !== undefined ? { sellerPhoneStatus } : {}),
     description: snapshot.description,
     imageUrl: snapshot.imageUrl,
     rooms: snapshot.rooms,
@@ -853,6 +864,7 @@ export async function backfillKufarSellerInfo() {
       id: true,
       sellerName: true,
       sellerPhone: true,
+      sellerPhoneStatus: true,
     },
   });
 
@@ -864,7 +876,7 @@ export async function backfillKufarSellerInfo() {
     scanned += 1;
 
     const needsSellerName = !String(listing.sellerName ?? "").trim();
-    const needsPhone = !String(listing.sellerPhone ?? "").trim();
+    const needsPhone = !String(listing.sellerPhone ?? "").trim() && listing.sellerPhoneStatus !== "blocked_by_ip";
 
     if (!needsSellerName && !needsPhone) {
       continue;
@@ -872,7 +884,7 @@ export async function backfillKufarSellerInfo() {
 
     matched += 1;
 
-    const nextData: { sellerName?: string | null; sellerPhone?: string | null } = {};
+    const nextData: { sellerName?: string | null; sellerPhone?: string | null; sellerPhoneStatus?: string | null } = {};
 
     if (needsSellerName) {
       try {
@@ -888,9 +900,11 @@ export async function backfillKufarSellerInfo() {
 
     if (needsPhone) {
       try {
-        const phone = await fetchKufarPhone(listing.id);
-        if (phone) {
-          nextData.sellerPhone = phone;
+        const phoneResult = await fetchKufarPhoneResult(listing.id);
+        if (phoneResult.blockedByIp) {
+          nextData.sellerPhoneStatus = "blocked_by_ip";
+        } else if (phoneResult.phone) {
+          nextData.sellerPhone = phoneResult.phone;
         }
       } catch (error) {
         logger.warn({ id: listing.id, error }, "Failed to backfill seller phone");
@@ -935,6 +949,7 @@ export async function backfillKufarSellerPhonesForToday() {
     select: {
       id: true,
       sellerPhone: true,
+      sellerPhoneStatus: true,
       events: {
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -954,15 +969,30 @@ export async function backfillKufarSellerPhonesForToday() {
     matched += 1;
 
     try {
-      const phone = await fetchKufarPhone(listing.id);
-      if (!phone) {
+      if (listing.sellerPhoneStatus === "blocked_by_ip") {
+        continue;
+      }
+
+      const phoneResult = await fetchKufarPhoneResult(listing.id);
+      if (phoneResult.blockedByIp) {
+        await prisma.listing.update({
+          where: { id: listing.id },
+          data: {
+            sellerPhoneStatus: "blocked_by_ip",
+          },
+        });
+        updated += 1;
+        continue;
+      }
+
+      if (!phoneResult.phone) {
         continue;
       }
 
       await prisma.listing.update({
         where: { id: listing.id },
         data: {
-          sellerPhone: phone,
+          sellerPhone: phoneResult.phone,
         },
       });
       updated += 1;

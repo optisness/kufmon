@@ -22,6 +22,7 @@ model Listing {
   sellerType String?
   sellerName String?
   sellerPhone String?
+  sellerPhoneStatus String?
   source   String  @default("kufar.by")
   isActive Boolean @default(true)
   contentHash String?

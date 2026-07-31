@@ -4,6 +4,7 @@ import {
   extractListingDetails,
   extractSellerDetails,
   fetchKufarPhone,
+  fetchKufarPhoneResult,
   resetKufarPhoneAuthHeadersCache,
   parseListingData,
   parseSellerType,
@@ -114,7 +115,28 @@ describe('parseListingData', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchKufarPhone('1078366830')).resolves.toBe(null);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks ASR0009 responses as blocked_by_ip without retrying further', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({
+        error: {
+          message: 'ad phone is hidden by ip',
+          code: 'ASR0009',
+        },
+      }),
+      json: async () => ({ phone: '' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchKufarPhoneResult('1078366830')).resolves.toEqual({
+      phone: null,
+      blockedByIp: true,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('normalizes multiple phone numbers returned by Kufar', async () => {

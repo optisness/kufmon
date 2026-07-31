@@ -242,26 +242,34 @@ function formatSellerLabel(value: unknown) {
   if (!text) return "—";
 
   const cleaned = text
-    .replace(/\bООО\b\.?\s*/giu, "")
-    .replace(/\bАгентство недвижимости\b[\s,;:-]*/giu, "")
+    .replace(/\u00A0/g, " ")
+    .replace(/\bООО\b[.\s,;:-]*/giu, "")
     .replace(/\bОбщество с ограниченной ответственностью\b[\s,;:-]*/giu, "")
+    .replace(/\bАгентство недвижимости\b[\s,;:-]*/giu, "")
+    .replace(/^[("'«\s-]+/g, "")
+    .replace(/[)"'»\s-]+$/g, "")
     .replace(/\s{2,}/g, " ")
-    .replace(/^[,\s-]+/g, "")
-    .replace(/[,;\s-]+$/g, "")
     .trim();
 
   return cleaned || "—";
 }
 
-function formatPhoneList(value: unknown) {
-  const phones = String(value ?? "")
+function formatPhoneCell(phone: unknown, status?: unknown) {
+  const phoneText = String(phone ?? "").trim();
+  const phoneStatus = String(status ?? "").trim();
+
+  if (phoneStatus === "blocked_by_ip") {
+    return `<span title="blocked_by_ip" style="color:#c0392b; font-size:13px; font-weight:700; line-height:1;">⛔</span>`;
+  }
+
+  const phones = phoneText
     .split(/\s*,\s*/)
-    .map((phone) => phone.trim())
+    .map((phoneValue) => phoneValue.trim())
     .filter(Boolean);
 
   if (phones.length === 0) return "—";
 
-  return phones.map((phone) => escapeHtml(phone)).join("<br />");
+  return phones.map((phoneValue) => escapeHtml(phoneValue)).join("<br />");
 }
 
 function formatDateTime(value: string | Date | null | undefined) {
@@ -1302,7 +1310,7 @@ function renderListingsPage(options: {
               <td><span class="compact-badge category">${escapeHtml(l.category ? (options.categoryLabelByValue[l.category] ?? "-") : "-")}</span></td>
               <td><span class="compact-badge ${escapeHtml(l.sellerType === "company" ? "company" : l.sellerType === "private" ? "private" : "unknown")}">${escapeHtml(l.sellerType === "company" ? "Агентство" : l.sellerType === "private" ? "Физлицо" : "-")}</span></td>
               <td>${escapeHtml(formatSellerLabel(l.sellerName))}</td>
-              <td class="phone-cell">${formatPhoneList(l.sellerPhone)}</td>
+              <td class="phone-cell">${formatPhoneCell(l.sellerPhone, l.sellerPhoneStatus)}</td>
               <td class="price" data-sort-value="${escapeHtml(l.price)}">$${l.price}</td>
               <td class="center-column">${l.rooms ?? "-"}</td>
               <td class="attempt-column">${escapeHtml(formatListingAttemptCount(l.missingCount))}</td>

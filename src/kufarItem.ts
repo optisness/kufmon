@@ -25,6 +25,11 @@ export async function fetchKufarItem(id: string) {
 
 type KufarPhoneAuthHeaders = Record<string, string>;
 
+export type KufarPhoneFetchResult = {
+  phone: string | null;
+  blockedByIp: boolean;
+};
+
 const cachedKufarPhoneAuthHeaders: KufarPhoneAuthHeaders = {};
 let hasCachedKufarPhoneAuthHeaders = false;
 let fallbackKufarBrowserId: string | null = null;
@@ -285,9 +290,20 @@ async function resolveKufarPhoneAuthHeaders(id: string) {
 }
 
 export async function fetchKufarPhone(id: string, authHeaders?: KufarPhoneAuthHeaders | null) {
-  const url = `https://api.kufar.by/search-api/v2/item/${id}/phone`;
-  let triedAuthDiscovery = false;
+  const result = await fetchKufarPhoneResult(id, authHeaders);
+  return result.phone;
+}
 
+function isBlockedByIpResponse(status: number, responseBody: string) {
+  if (status !== 400) return false;
+  return /ad phone is hidden by ip/i.test(responseBody) || /"code"\s*:\s*"ASR0009"/i.test(responseBody);
+}
+
+export async function fetchKufarPhoneResult(
+  id: string,
+  authHeaders?: KufarPhoneAuthHeaders | null,
+): Promise<KufarPhoneFetchResult> {
+  const url = `https://api.kufar.by/search-api/v2/item/${id}/phone`;
   function normalizePhoneList(value: unknown) {
     const raw = String(value ?? "").trim();
     if (!raw) return null;
@@ -302,79 +318,80 @@ export async function fetchKufarPhone(id: string, authHeaders?: KufarPhoneAuthHe
     return Array.from(new Set(phones)).join(", ");
   }
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12_000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+
+  const mergedAuthHeaders = mergeKufarPhoneAuthHeaders(
+    readKufarPhoneAuthHeadersFromEnv(),
+    hasCachedKufarPhoneAuthHeaders ? cachedKufarPhoneAuthHeaders : null,
+    authHeaders,
+  );
+
+  try {
+    const performRequest = async (headers: KufarPhoneAuthHeaders | null) => fetch(url, {
+      headers: buildKufarPhoneRequestHeaders(id, headers),
+      signal: controller.signal,
+    });
 
     let res: Response;
     try {
-      res = await fetch(url, {
-        headers: buildKufarPhoneRequestHeaders(
-          id,
-          mergeKufarPhoneAuthHeaders(
-            readKufarPhoneAuthHeadersFromEnv(),
-            hasCachedKufarPhoneAuthHeaders ? cachedKufarPhoneAuthHeaders : null,
-            authHeaders,
-          ),
-        ),
-        signal: controller.signal,
-      });
+      res = await performRequest(mergedAuthHeaders);
     } catch (error) {
-      if (attempt === 2) {
-        if (error instanceof Error && error.name === "AbortError") {
-          return null;
-        }
-        throw error;
+      if (error instanceof Error && error.name === "AbortError") {
+        return { phone: null, blockedByIp: false };
       }
-
-      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
-      continue;
-    } finally {
-      clearTimeout(timeout);
+      throw error;
     }
 
     if (res.ok) {
       const data = await res.json();
-      return normalizePhoneList(data?.phone);
+      return { phone: normalizePhoneList(data?.phone), blockedByIp: false };
     }
 
     const responseBody = await res.text().catch(() => "");
-    const responseSummary = responseBody.trim().slice(0, 300);
 
-    if (res.status === 401 && !triedAuthDiscovery) {
-      triedAuthDiscovery = true;
+    if (isBlockedByIpResponse(res.status, responseBody)) {
+      return { phone: null, blockedByIp: true };
+    }
+
+    if (res.status === 401) {
       try {
         const resolvedAuthHeaders = await resolveKufarPhoneAuthHeaders(id);
-        if (resolvedAuthHeaders) {
-          rememberKufarPhoneAuthHeaders(resolvedAuthHeaders);
-          authHeaders = mergeKufarPhoneAuthHeaders(authHeaders, resolvedAuthHeaders);
-          if (authHeaders) {
-            continue;
+        const nextHeaders = mergeKufarPhoneAuthHeaders(mergedAuthHeaders, resolvedAuthHeaders);
+        if (nextHeaders && nextHeaders.authorization) {
+          try {
+            const retryRes = await performRequest(nextHeaders);
+            if (retryRes.ok) {
+              const data = await retryRes.json();
+              return { phone: normalizePhoneList(data?.phone), blockedByIp: false };
+            }
+
+            const retryBody = await retryRes.text().catch(() => "");
+            if (isBlockedByIpResponse(retryRes.status, retryBody)) {
+              return { phone: null, blockedByIp: true };
+            }
+          } catch (retryError) {
+            if (retryError instanceof Error && retryError.name === "AbortError") {
+              return { phone: null, blockedByIp: false };
+            }
+            throw retryError;
           }
         }
       } catch {
-        // If auth discovery fails, fall through to the normal retry logic.
+        // If auth discovery fails, fall through to null below.
       }
     }
 
-    if (res.status === 404 || res.status === 403 || res.status === 429) {
-      if (attempt === 2) {
-        return null;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
-      continue;
+    if (res.status === 403 || res.status === 404 || res.status === 429 || res.status === 401) {
+      return { phone: null, blockedByIp: false };
     }
 
-    if (attempt === 2) {
-      const summarySuffix = responseSummary ? `; body: ${responseSummary}` : "";
-      throw new Error(`Failed to fetch phone for item ${id}: HTTP ${res.status}${summarySuffix}`);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+    const responseSummary = responseBody.trim().slice(0, 300);
+    const summarySuffix = responseSummary ? `; body: ${responseSummary}` : "";
+    throw new Error(`Failed to fetch phone for item ${id}: HTTP ${res.status}${summarySuffix}`);
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return null;
 }
 
 export type KufarListingDetails = {
