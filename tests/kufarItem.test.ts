@@ -11,7 +11,14 @@ import {
 
 describe('parseListingData', () => {
   afterEach(() => {
+    delete process.env.KUFAR_PHONE_REQUEST_HEADERS_JSON;
+    delete process.env.KUFAR_PHONE_AUTHORIZATION;
     delete process.env.KUFAR_PHONE_X_APP_NAME;
+    delete process.env.KUFAR_PHONE_X_APP_REQUEST_SOURCE;
+    delete process.env.KUFAR_PHONE_X_PULSE_ENVIRONMENT_ID;
+    delete process.env.KUFAR_PHONE_X_RUDDER_ANONYMOUS_ID;
+    delete process.env.KUFAR_PHONE_X_DEVICE_ID;
+    delete process.env.KUFAR_PHONE_X_SEARCH_ID;
     resetKufarPhoneAuthHeadersCache();
     vi.unstubAllGlobals();
   });
@@ -90,6 +97,8 @@ describe('parseListingData', () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           accept: 'application/json, text/plain, */*',
+          'x-app-version': 'kufar-web-pro',
+          'x-product-type': 'ad_view',
         }),
       }),
     );
@@ -123,6 +132,15 @@ describe('parseListingData', () => {
     const html = `
       <script id="__NEXT_DATA__" type="application/json">
         {
+          "buildId": "build-123",
+          "runtimeConfig": {
+            "deploy": {
+              "deployTag": "kufar-web-pro"
+            },
+            "application": {
+              "adview": "ad_view"
+            }
+          },
           "props": {
             "initialState": {
               "user": {
@@ -138,6 +156,8 @@ describe('parseListingData', () => {
 
     expect(extractKufarPhoneAuthHeaders(html)).toEqual({
       authorization: 'Bearer test-token',
+      'x-app-version': 'build-123',
+      'x-product-type': 'ad_view',
     });
   });
 
@@ -154,6 +174,15 @@ describe('parseListingData', () => {
         text: async () => `
           <script id="__NEXT_DATA__" type="application/json">
             {
+              "buildId": "build-123",
+              "runtimeConfig": {
+                "deploy": {
+                  "deployTag": "kufar-web-pro"
+                },
+                "application": {
+                  "adview": "ad_view"
+                }
+              },
               "props": {
                 "initialState": {
                   "user": {
@@ -183,6 +212,11 @@ describe('parseListingData', () => {
             authorization: 'Bearer test-token',
             'x-app-name': 'Web Kufar',
             'x-app-request-source': 'ad_view',
+            'x-app-version': 'build-123',
+            'x-product-type': 'ad_view',
+            'x-device-id': expect.any(String),
+            'x-pulse-environment-id': expect.any(String),
+            'x-rudder-anonymous-id': expect.any(String),
           }),
         }),
     );
@@ -243,15 +277,58 @@ describe('parseListingData', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       'https://api.kufar.by/search-api/v2/item/1078366830/phone',
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            authorization: 'Bearer env-test-token',
-            'x-app-name': 'Web Kufar',
-            'x-app-request-source': 'ad_view',
-          }),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: 'Bearer env-test-token',
+          'x-app-name': 'Web Kufar',
+          'x-app-request-source': 'ad_view',
+          'x-app-version': 'kufar-web-pro',
+          'x-product-type': 'ad_view',
+          'x-device-id': expect.any(String),
+          'x-pulse-environment-id': expect.any(String),
+          'x-rudder-anonymous-id': expect.any(String),
         }),
+      }),
     );
 
+  });
+
+  it('uses phone headers from env json when provided', async () => {
+    process.env.KUFAR_PHONE_REQUEST_HEADERS_JSON = JSON.stringify({
+      authorization: 'Bearer env-token',
+      'x-app-name': 'Web Kufar',
+      'x-app-request-source': 'ad_view',
+      'x-app-version': 'build-env',
+      'x-product-type': 'ad_view',
+      'x-pulse-environment-id': 'pulse-id',
+      'x-rudder-anonymous-id': 'rudder-id',
+      'x-device-id': 'device-id',
+      'x-searchid': 'search-id',
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ phone: '375298187308' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchKufarPhone('1078366830')).resolves.toBe('375298187308');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.kufar.by/search-api/v2/item/1078366830/phone',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: 'Bearer env-token',
+          'x-app-name': 'Web Kufar',
+          'x-app-request-source': 'ad_view',
+          'x-app-version': 'build-env',
+          'x-product-type': 'ad_view',
+          'x-pulse-environment-id': 'pulse-id',
+          'x-rudder-anonymous-id': 'rudder-id',
+          'x-device-id': 'device-id',
+          'x-searchid': 'search-id',
+        }),
+      }),
+    );
   });
 
   it('extracts seller name and contact person from the item html json', () => {

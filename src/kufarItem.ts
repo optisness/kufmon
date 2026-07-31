@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 export async function fetchKufarItem(id: string) {
   const url = `https://re.kufar.by/vi/${id}`;
 
@@ -21,16 +23,19 @@ export async function fetchKufarItem(id: string) {
   }
 }
 
-type KufarPhoneAuthHeaders = {
-  authorization?: string;
-  "x-app-name"?: string;
-  "x-app-request-source"?: string;
-  "x-pulse-environment-id"?: string;
-  "x-rudder-anonymous-id"?: string;
-};
+type KufarPhoneAuthHeaders = Record<string, string>;
 
 const cachedKufarPhoneAuthHeaders: KufarPhoneAuthHeaders = {};
 let hasCachedKufarPhoneAuthHeaders = false;
+let fallbackKufarBrowserId: string | null = null;
+
+function getFallbackKufarBrowserId() {
+  if (!fallbackKufarBrowserId) {
+    fallbackKufarBrowserId = randomUUID();
+  }
+
+  return fallbackKufarBrowserId;
+}
 
 export function resetKufarPhoneAuthHeadersCache() {
   for (const key of Object.keys(cachedKufarPhoneAuthHeaders)) {
@@ -47,6 +52,30 @@ function normalizeHeaderValue(value: unknown) {
 function normalizeAuthorizationHeader(value: string | null) {
   if (!value) return null;
   return /^Bearer\s+/i.test(value) ? value : `Bearer ${value}`;
+}
+
+function parseJsonHeaderOverrides(value: string | null) {
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+
+    const headers: Record<string, string> = {};
+    for (const [key, rawValue] of Object.entries(parsed as Record<string, unknown>)) {
+      const normalizedKey = String(key).trim().toLowerCase();
+      const normalizedValue = normalizeHeaderValue(rawValue);
+      if (normalizedKey && normalizedValue) {
+        headers[normalizedKey] = normalizedValue;
+      }
+    }
+
+    return Object.keys(headers).length > 0 ? headers : null;
+  } catch {
+    return null;
+  }
 }
 
 function readHeaderFromHtml(html: string, keyPattern: RegExp, valuePattern?: RegExp) {
@@ -94,6 +123,13 @@ export function extractKufarPhoneAuthHeaders(html: string): KufarPhoneAuthHeader
   const authorizationFromNextData = nextData
     ? getNestedString(nextData, ["props", "initialState", "user", "login", "jwt"])
     : null;
+  const buildIdFromNextData = nextData ? getNestedString(nextData, ["buildId"]) : null;
+  const appVersionFromRuntimeConfig = nextData
+    ? getNestedString(nextData, ["runtimeConfig", "deploy", "deployTag"])
+    : null;
+  const productTypeFromRuntimeConfig = nextData
+    ? getNestedString(nextData, ["runtimeConfig", "application", "adview"])
+    : null;
 
   const authorization =
     authorizationFromNextData ??
@@ -130,25 +166,46 @@ export function extractKufarPhoneAuthHeaders(html: string): KufarPhoneAuthHeader
     readHeaderFromHtml(html, /xRudderAnonymousId/i);
   if (xRudderAnonymousId) headers["x-rudder-anonymous-id"] = xRudderAnonymousId;
 
+  const appVersion = buildIdFromNextData ?? appVersionFromRuntimeConfig;
+  if (appVersion) headers["x-app-version"] = appVersion;
+
+  const productType = productTypeFromRuntimeConfig;
+  if (productType) headers["x-product-type"] = productType;
+
   return Object.keys(headers).length > 0 ? headers : null;
 }
 
 function readKufarPhoneAuthHeadersFromEnv() {
+  const headers: KufarPhoneAuthHeaders = {};
+
+  const jsonHeaders = parseJsonHeaderOverrides(
+    normalizeHeaderValue(process.env.KUFAR_PHONE_REQUEST_HEADERS_JSON),
+  );
+  if (jsonHeaders) {
+    Object.assign(headers, jsonHeaders);
+  }
+
   const authorization = normalizeAuthorizationHeader(
     normalizeHeaderValue(process.env.KUFAR_PHONE_AUTHORIZATION),
   );
   const xAppName = normalizeHeaderValue(process.env.KUFAR_PHONE_X_APP_NAME);
   const xAppRequestSource = normalizeHeaderValue(process.env.KUFAR_PHONE_X_APP_REQUEST_SOURCE);
+  const xAppVersion = normalizeHeaderValue(process.env.KUFAR_PHONE_X_APP_VERSION);
+  const xProductType = normalizeHeaderValue(process.env.KUFAR_PHONE_X_PRODUCT_TYPE);
   const xPulseEnvironmentId = normalizeHeaderValue(process.env.KUFAR_PHONE_X_PULSE_ENVIRONMENT_ID);
   const xRudderAnonymousId = normalizeHeaderValue(process.env.KUFAR_PHONE_X_RUDDER_ANONYMOUS_ID);
-
-  const headers: KufarPhoneAuthHeaders = {};
+  const xDeviceId = normalizeHeaderValue(process.env.KUFAR_PHONE_X_DEVICE_ID);
+  const xSearchId = normalizeHeaderValue(process.env.KUFAR_PHONE_X_SEARCH_ID);
 
   if (authorization) headers.authorization = authorization;
   if (xAppName) headers["x-app-name"] = xAppName;
   if (xAppRequestSource) headers["x-app-request-source"] = xAppRequestSource;
+  if (xAppVersion) headers["x-app-version"] = xAppVersion;
+  if (xProductType) headers["x-product-type"] = xProductType;
   if (xPulseEnvironmentId) headers["x-pulse-environment-id"] = xPulseEnvironmentId;
   if (xRudderAnonymousId) headers["x-rudder-anonymous-id"] = xRudderAnonymousId;
+  if (xDeviceId) headers["x-device-id"] = xDeviceId;
+  if (xSearchId) headers["x-searchid"] = xSearchId;
 
   return Object.keys(headers).length > 0 ? headers : null;
 }
@@ -183,6 +240,7 @@ function rememberKufarPhoneAuthHeaders(headers: KufarPhoneAuthHeaders | null) {
 }
 
 function buildKufarPhoneRequestHeaders(id: string, authHeaders?: KufarPhoneAuthHeaders | null) {
+  const fallbackBrowserId = getFallbackKufarBrowserId();
   const headers: Record<string, string> = {
     accept: "application/json, text/plain, */*",
     "accept-language": "ru-RU,ru;q=0.9",
@@ -195,19 +253,16 @@ function buildKufarPhoneRequestHeaders(id: string, authHeaders?: KufarPhoneAuthH
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
     "x-app-name": "Web Kufar",
     "x-app-request-source": "ad_view",
+    "x-app-version": "kufar-web-pro",
+    "x-product-type": "ad_view",
+    "x-device-id": fallbackBrowserId,
+    "x-pulse-environment-id": fallbackBrowserId,
+    "x-rudder-anonymous-id": fallbackBrowserId,
     "x-requested-with": "XMLHttpRequest",
   };
 
-  if (authHeaders?.authorization) headers.authorization = authHeaders.authorization;
-  if (authHeaders?.["x-app-name"]) headers["x-app-name"] = authHeaders["x-app-name"];
-  if (authHeaders?.["x-app-request-source"]) {
-    headers["x-app-request-source"] = authHeaders["x-app-request-source"];
-  }
-  if (authHeaders?.["x-pulse-environment-id"]) {
-    headers["x-pulse-environment-id"] = authHeaders["x-pulse-environment-id"];
-  }
-  if (authHeaders?.["x-rudder-anonymous-id"]) {
-    headers["x-rudder-anonymous-id"] = authHeaders["x-rudder-anonymous-id"];
+  for (const [key, value] of Object.entries(authHeaders ?? {})) {
+    headers[key] = value;
   }
 
   return headers;
