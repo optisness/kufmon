@@ -238,16 +238,21 @@ function formatPrice(value: number | string | null | undefined) {
 }
 
 function formatSellerLabel(value: unknown) {
-  const text = String(value ?? "").trim();
+  const text = String(value ?? "")
+    .normalize("NFKC")
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!text) return "—";
 
   const cleaned = text
-    .replace(/\u00A0/g, " ")
-    .replace(/\bООО\b[.\s,;:-]*/giu, "")
-    .replace(/\bОбщество с ограниченной ответственностью\b[\s,;:-]*/giu, "")
-    .replace(/\bАгентство недвижимости\b[\s,;:-]*/giu, "")
-    .replace(/^[("'«\s-]+/g, "")
-    .replace(/[)"'»\s-]+$/g, "")
+    .replace(/\bООО\b/giu, "")
+    .replace(/\bОбщество\s+с\s+ограниченной\s+ответственностью\b/giu, "")
+    .replace(/\bАгентство\s+недвижимости\b/giu, "")
+    .replace(/\bриэлтерское\s+агентство\b/giu, "")
+    .replace(/\bагентство\b/giu, "")
+    .replace(/^[("'«\s,;:-]+/g, "")
+    .replace(/[)"'»\s,;:-]+$/g, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 
