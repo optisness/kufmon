@@ -1245,5 +1245,21 @@ describe('Kufar sync', () => {
       ),
     ).toBe(false);
   });
+
+  it('skips listings when description contains an exclusion keyword', () => {
+    expect(
+      matchesSubscriptionListing(
+        { category: '1010', keywords: ['ремонт'], excludeKeywords: ['без ремонта', 'студия'] },
+        { category: '1010', price: 75000, rooms: 2, description: 'Квартира с лоджией и без ремонта' },
+      ),
+    ).toBe(false);
+
+    expect(
+      matchesSubscriptionListing(
+        { category: '1010', keywords: ['ремонт'], excludeKeywords: ['без ремонта', 'студия'] },
+        { category: '1010', price: 75000, rooms: 2, description: 'Квартира с лоджией и хорошим ремонтом' },
+      ),
+    ).toBe(true);
+  });
 });
 

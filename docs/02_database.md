@@ -109,7 +109,7 @@ Current fixed tariffs:
 
 -   In the admin UI, `user_id` is selected from existing users instead of being entered manually.
 -   `category` stores the Kufar search category code used for the subscription, for example `1010` or `1050`.
--   `max_price`, `rooms`, and `keywords` are exposed in the UI as simple fields; `keywords` are stored in the subscription `filters` JSON so the UI stays compact.
+-   `max_price`, `rooms`, `keywords`, and `excludeKeywords` are exposed in the UI as simple fields; the extra description filters are stored in the subscription `filters` JSON so the UI stays compact.
 -   `rooms` may include the special token `5+`, which matches any listing with five or more rooms.
 -   When a subscription is created or the user tariff changes, the service clamps the interval to the plan minimum and disables the oldest active subscriptions if the plan limit is exceeded.
 
@@ -128,7 +128,7 @@ Current fixed tariffs:
   created_at
   updated_at
 
-Additional optional search criteria, including keywords, are stored inside `filter_json`.
+Additional optional search criteria, including keywords and exclusion keywords, are stored inside `filter_json`.
 
 Правила:
 

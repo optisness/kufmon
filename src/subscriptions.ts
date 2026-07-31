@@ -7,6 +7,7 @@ type SubscriptionLike = {
   rooms?: unknown;
   filters?: unknown;
   keywords?: unknown;
+  excludeKeywords?: unknown;
 };
 
 type ListingLike = {
@@ -97,6 +98,7 @@ export function getSubscriptionFilters(subscription: SubscriptionLike) {
   const legacyFilters = parseMaybeJson(subscription.filters) as any;
   const legacyMaxPrice = legacyFilters?.price_max ?? legacyFilters?.maxPrice ?? null;
   const legacyKeywords = legacyFilters?.keywords ?? legacyFilters?.description_keywords ?? legacyFilters?.descriptionKeywords ?? null;
+  const legacyExcludeKeywords = legacyFilters?.excludeKeywords ?? legacyFilters?.exclude_keywords ?? legacyFilters?.description_exclude_keywords ?? null;
   const maxPrice =
     subscription.maxPrice != null
       ? Number(subscription.maxPrice)
@@ -115,11 +117,17 @@ export function getSubscriptionFilters(subscription: SubscriptionLike) {
       ? subscription.keywords
       : legacyKeywords;
   const keywords = normalizeKeywordsList(keywordsSource);
+  const excludeKeywordsSource =
+    subscription.excludeKeywords != null && normalizeKeywordsList(subscription.excludeKeywords).length > 0
+      ? subscription.excludeKeywords
+      : legacyExcludeKeywords;
+  const excludeKeywords = normalizeKeywordsList(excludeKeywordsSource);
 
   return {
     maxPrice: Number.isFinite(maxPrice as number) ? (maxPrice as number) : null,
     rooms,
     keywords,
+    excludeKeywords,
   };
 }
 
@@ -131,6 +139,10 @@ export function formatRoomsList(rooms: unknown) {
 export function formatKeywordsList(keywords: unknown) {
   const values = normalizeKeywordsList(keywords);
   return values.length > 0 ? values.join(", ") : "-";
+}
+
+export function formatExcludeKeywordsList(keywords: unknown) {
+  return formatKeywordsList(keywords);
 }
 
 function normalizeSearchText(value: unknown) {
@@ -169,6 +181,13 @@ export function matchesSubscriptionListing(subscription: SubscriptionLike, listi
 
   if (filters.rooms.length > 0) {
     if (!filters.rooms.some((room) => matchesRoomFilter(listing.rooms ?? null, room))) return false;
+  }
+
+  if (filters.excludeKeywords.length > 0) {
+    const haystack = normalizeSearchText(listing.description);
+    if (haystack && filters.excludeKeywords.some((keyword) => haystack.includes(normalizeSearchText(keyword)))) {
+      return false;
+    }
   }
 
   if (filters.keywords.length > 0) {
