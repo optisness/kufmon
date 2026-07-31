@@ -28,6 +28,33 @@ let lastKufarFormatAlertAt = 0;
 const KUFAR_DEFAULT_GTSY = "country-belarus~province-grodnenskaja_oblast~locality-grodno";
 const KUFAR_SOURCE = "kufar.by";
 
+function formatErrorDetails(error: unknown) {
+  if (error instanceof Error) {
+    const details: Record<string, unknown> = {
+      name: error.name,
+      message: error.message,
+    };
+
+    const extraError = error as Error & { status?: number; code?: string; cause?: unknown };
+    if (typeof extraError.status === "number") {
+      details.status = extraError.status;
+    }
+    if (typeof extraError.code === "string") {
+      details.code = extraError.code;
+    }
+    if (extraError.cause instanceof Error) {
+      details.cause = {
+        name: extraError.cause.name,
+        message: extraError.cause.message,
+      };
+    }
+
+    return details;
+  }
+
+  return { error };
+}
+
 export const KUFAR_CATEGORIES = {
   apartments: "1010",
   houses: "1020",
@@ -940,7 +967,10 @@ export async function backfillKufarSellerPhonesForToday() {
       });
       updated += 1;
     } catch (error) {
-      logger.warn({ id: listing.id, error }, "Failed to backfill seller phone for today's active listing");
+      logger.warn(
+        { id: listing.id, ...formatErrorDetails(error) },
+        "Failed to backfill seller phone for today's active listing",
+      );
     }
   }
 
