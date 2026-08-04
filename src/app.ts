@@ -476,6 +476,8 @@ function renderAdminLayout(options: {
     .center-column, th.center-column { text-align:center; }
     .event-column { white-space:nowrap; }
     .id-column { font-family: monospace; font-size:11px; color:#8a8a8a; white-space:nowrap; }
+    .notes-column { max-width: 220px; white-space: normal; word-break: break-word; }
+    .notes-cell { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     .compact-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:12px; line-height:1.2; background:#f3f4f6; color:#222; }
     .compact-badge.category { background:#eef2ff; color:#3730a3; }
     .compact-badge.private { background:#fbe7e7; color:#9b1c1c; }
@@ -950,7 +952,7 @@ function renderUsersPage(options: {
     <div class="section">
       <h2>Пользователи</h2>
       <h3>${isEditing ? "Редактировать пользователя" : "Создать пользователя"}</h3>
-      <form method="POST" action="${isEditing ? "/users/update" : "/users"}" class="compact-form" style="grid-template-columns: 1fr 1fr 1.2fr 1fr 1fr auto; align-items:end;">
+      <form method="POST" action="${isEditing ? "/users/update" : "/users"}" class="compact-form" style="grid-template-columns: 1fr 1fr 1fr 1.4fr 1fr 1fr auto; align-items:end;">
         <input type="hidden" name="returnTo" value="${escapeHtml(options.returnTo)}" />
         ${isEditing ? `<input type="hidden" name="id" value="${escapeHtml(options.selectedUser.id)}" />` : ""}
         <div class="form-group">
@@ -960,6 +962,14 @@ function renderUsersPage(options: {
         <div class="form-group">
           <label>Telegram Chat ID</label>
           <input name="chatId" value="${escapeHtml(options.selectedUser?.telegramChatId ?? "")}" placeholder="e.g., 123456789" required />
+        </div>
+        <div class="form-group">
+          <label>Телефон</label>
+          <input name="phone" value="${escapeHtml(options.selectedUser?.phone ?? "")}" placeholder="+375..." />
+        </div>
+        <div class="form-group">
+          <label>Примечания</label>
+          <textarea name="notes" rows="2" placeholder="Комментарий, адрес, особенности">${escapeHtml(options.selectedUser?.notes ?? "")}</textarea>
         </div>
         <div class="form-group">
           <label>Тариф</label>
@@ -987,6 +997,8 @@ function renderUsersPage(options: {
             <th>№</th>
             ${renderSortableHeader("Имя / название", "name", "string", options.currentSort)}
             ${renderSortableHeader("Chat ID", "chatId", "string", options.currentSort)}
+            <th>Телефон</th>
+            <th class="notes-column">Примечания</th>
             ${renderSortableHeader("Тариф", "plan", "string", options.currentSort)}
             ${renderSortableHeader("Оплачено до", "expiresAt", "string", options.currentSort)}
             <th>Действия</th>
@@ -998,6 +1010,8 @@ function renderUsersPage(options: {
               <td>${getDisplayRowNumber(options.pagination, index)}</td>
               <td>${escapeHtml(u.name?.trim() || "-")}</td>
               <td>${escapeHtml(u.telegramChatId)}</td>
+              <td>${escapeHtml(u.phone?.trim() || "-")}</td>
+              <td class="notes-column"><div class="notes-cell">${escapeHtml(u.notes?.trim() || "-")}</div></td>
               <td>${escapeHtml(u.plan?.name ?? formatBillingPlanLabel(u.planId))}</td>
               <td>${escapeHtml(formatDateTime(u.planExpiresAt))}</td>
               <td>
@@ -1671,6 +1685,8 @@ app.post("/users", async (req: any, reply) => {
     data: {
       name: body.name ? String(body.name).trim() || null : null,
       telegramChatId: body.chatId,
+      phone: body.phone ? String(body.phone).trim() || null : null,
+      notes: body.notes ? String(body.notes).trim() || null : null,
     },
   });
 
@@ -1695,6 +1711,8 @@ app.post("/users/update", async (req: any, reply) => {
     data: {
       name: body.name ? String(body.name).trim() || null : null,
       telegramChatId: body.chatId,
+      phone: body.phone ? String(body.phone).trim() || null : null,
+      notes: body.notes ? String(body.notes).trim() || null : null,
     },
   });
 

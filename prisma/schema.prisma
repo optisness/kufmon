@@ -41,6 +41,8 @@ model User {
   id             String  @id @default(cuid())
   name           String?
   telegramChatId String
+  phone          String?
+  notes          String?
   planId         String?
   planExpiresAt  DateTime?
 

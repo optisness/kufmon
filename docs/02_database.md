@@ -19,6 +19,7 @@
 
 -   `name` is an optional display name for the user.
 -   The admin UI uses it to label users and subscription owners.
+-   `phone` and `notes` are optional customer fields in the admin UI.
 -   The active tariff is stored on the user itself as `plan_id` and `plan_expires_at` so the admin UI can sort and filter without extra joins.
 -   Billing history is stored separately in `user_subscriptions`, so a tariff change creates a new row instead of overwriting the past.
 
@@ -27,6 +28,8 @@
   id           BIGSERIAL PK   идентификатор
   login        TEXT UNIQUE    логин
   email        TEXT           email
+  phone        TEXT           телефон клиента
+  notes        TEXT           примечания
   enabled      BOOLEAN        активен
   created_at   TIMESTAMPTZ    создание
   updated_at   TIMESTAMPTZ    изменение
