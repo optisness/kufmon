@@ -452,3 +452,7 @@ Possible additions:
 - The NEW history payload stores the full address, the full description text, and all photo URLs for admin inspection.
 - In the admin history view, those photos are shown as thumbnails and open in a gallery lightbox with arrow navigation.
 - History timestamps in the admin view use Minsk time, matching the listings table.
+- Billing reminder notifications run daily at 10:00 Europe/Minsk.
+- The client gets a reminder 3 working days before `planExpiresAt` and again 1 calendar day before expiry.
+- The 1-day reminder is also copied to the admin chat for control.
+- Reminder sends are deduplicated by a Telegram delivery log purpose key that includes the expiry date.

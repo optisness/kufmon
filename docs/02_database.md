@@ -144,6 +144,7 @@ Additional optional search criteria, including keywords and exclusion keywords, 
 
 Implementation note: `Listing.price` is the normalized USD price used everywhere in the UI, Telegram messages, and history. `Listing.currency` stores the original Kufar currency, and `sourcePrice` stores the raw source price used for change detection, so exchange-rate drift does not create false `CHANGED` events.
 Telegram deliveries are stored in `TelegramDeliveryLog` with the target user, subscription name when available, delivery purpose, result, and timestamp. Failed deliveries trigger an admin Telegram alert.
+Billing reminder deliveries also use `TelegramDeliveryLog`. The reminder `purpose` includes the reminder kind and the plan expiry date, so the same reminder is not sent twice for the same subscription end date.
 
   Поле
   --------------------

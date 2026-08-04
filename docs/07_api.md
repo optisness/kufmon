@@ -515,3 +515,4 @@ These are internal service components.
 - Subscriptions now also store `source` and `notificationMode`.
 - Admin listings link the title to the history page, keep the Kufar page link as a compact logo, and color the latest-event date by event type.
 - History summaries render stored photo URLs as thumbnail galleries. Clicking a thumbnail opens a lightbox that supports previous/next navigation through the photos of that listing event.
+- Billing reminder jobs run from the internal cron at 10:00 Europe/Minsk. The 1-day reminder is duplicated to the admin chat, and delivery deduplication uses the Telegram log purpose key that includes the plan expiry date.
