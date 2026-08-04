@@ -1,5 +1,7 @@
 # 12. Testing Strategy
 
+**Canonical index:** [00_index.md](00_index.md)
+
 **Version:** 1.0  
 **Status:** Draft
 

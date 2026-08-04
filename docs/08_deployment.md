@@ -1,5 +1,7 @@
 # Deployment
 
+**Canonical index:** [00_index.md](00_index.md)
+
 ## Overview
 
 KufMon is deployed as a containerized backend application.

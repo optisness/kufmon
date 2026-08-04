@@ -1,5 +1,7 @@
 # System Architecture
 
+**Canonical index:** [00_index.md](00_index.md)
+
 ## Overview
 
 KufMon is a backend service that monitors real estate advertisements published on Kufar.by.

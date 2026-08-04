@@ -1,5 +1,7 @@
 # Project Structure
 
+**Canonical index:** [00_index.md](00_index.md)
+
 ## Overview
 
 This document defines the directory structure of the KufMon project.

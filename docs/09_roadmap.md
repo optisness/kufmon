@@ -1,5 +1,7 @@
 # Roadmap
 
+**Canonical index:** [00_index.md](00_index.md)
+
 ## Overview
 
 This roadmap describes the planned evolution of KufMon from an MVP into a production-ready real estate monitoring platform.

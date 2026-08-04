@@ -1,5 +1,7 @@
 # 06. Notification Algorithm
 
+**Canonical index:** [00_index.md](00_index.md)
+
 **Version:** 1.0  
 **Status:** Draft  
 **Last updated:** 2026-07-29

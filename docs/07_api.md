@@ -1,5 +1,7 @@
 # 07. Service API
 
+**Canonical index:** [00_index.md](00_index.md)
+
 **Version:** 1.0  
 **Status:** Partially implemented (service provides a minimal set of endpoints)
 **Last updated:** 2026-07-31

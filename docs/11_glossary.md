@@ -1,5 +1,7 @@
 # 11. Glossary
 
+**Canonical index:** [00_index.md](00_index.md)
+
 **Version:** 1.0  
 **Status:** Living Document
 
