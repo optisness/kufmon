@@ -16,6 +16,7 @@ The sync job fetches Kufar listings, normalizes them, updates `Listing`, and wri
 - `missingCount` protects against temporary Kufar failures.
 - `REMOVED` is emitted only after the third consecutive miss.
 - If a listing returns after the first or second miss unchanged, no event is written.
+- Removed and inactive listings stay in the database; sync no longer deletes old rows automatically.
 
 ## Flow
 
@@ -82,4 +83,3 @@ If the listing reappears before the third miss and the snapshot is unchanged, no
 - The sync is idempotent.
 - Temporary Kufar outages should not create duplicate removal events.
 - Canonical listing changes should be derived from the raw source fields, not from exchange-rate conversions.
-

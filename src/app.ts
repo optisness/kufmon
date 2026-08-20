@@ -136,15 +136,8 @@ function parseSubscriptionKeywords(value: any) {
     .filter(Boolean);
 }
 
-function buildListingsWhere(filters: ReturnType<typeof parseListingsFilterState>, cutoff: Date) {
-  const andConditions: any[] = [
-    {
-      OR: [
-        { isActive: true },
-        { lastSeenAt: { gte: cutoff } },
-      ],
-    },
-  ];
+function buildListingsWhere(filters: ReturnType<typeof parseListingsFilterState>) {
+  const andConditions: any[] = [];
 
   if (filters.seller === "private" || filters.seller === "company") {
     andConditions.push({ sellerType: filters.seller });
@@ -369,17 +362,6 @@ function sortSubscriptions(subscriptions: any[], usersById: Map<string, any>) {
     }
 
     return compareStrings(String(a?.createdAt ?? ""), String(b?.createdAt ?? ""));
-  });
-}
-
-async function cleanupStaleListings() {
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-  await prisma.listing.deleteMany({
-    where: {
-      isActive: false,
-      lastSeenAt: { lt: cutoff },
-    },
   });
 }
 
@@ -1231,6 +1213,7 @@ function renderSubscriptionsPage(options: {
 
 function renderListingsPage(options: {
   listings: any[];
+  topAuthors: Array<{ sellerName: string; count: number }>;
   categoryLabelByValue: Record<string, string>;
   latestEventByListingId: Map<string, { eventType: string; createdAt: Date }>;
   pagination: ReturnType<typeof buildPaginationMeta>;
@@ -1288,6 +1271,25 @@ function renderListingsPage(options: {
           </div>
         </div>
       </form>
+      <h3>Топ агентств</h3>
+      ${options.topAuthors.length > 0 ? `
+        <table style="max-width:720px; margin-bottom:16px;">
+          <thead>
+            <tr>
+              <th>Автор</th>
+              <th class="center-column">Объявлений</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${options.topAuthors.map((author, index) => `
+              <tr>
+                <td>${index + 1}. ${escapeHtml(author.sellerName)}</td>
+                <td class="center-column">${author.count}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : `<div style="color:#6b7280; margin-bottom:16px;">Пока нет агентств для подсчета.</div>`}
       <table data-sort-table="listings" data-listings-table="true">
         <thead>
           <tr>
@@ -1473,7 +1475,6 @@ app.get("/ui", async (_req, reply) => {
 });
 
 app.get("/ui/users", async (req: any, reply) => {
-  await cleanupStaleListings();
   const page = parsePositiveInt(req.query?.page, 1);
   const totalItems = await prisma.user.count();
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
@@ -1512,7 +1513,6 @@ app.get("/ui/users", async (req: any, reply) => {
 });
 
 app.get("/ui/subscriptions", async (req: any, reply) => {
-  await cleanupStaleListings();
   const page = parsePositiveInt(req.query?.page, 1);
   const users = sortUsers(await prisma.user.findMany());
   const usersById = new Map(users.map((user) => [user.id, user]));
@@ -1565,11 +1565,9 @@ app.get("/ui/subscriptions", async (req: any, reply) => {
 });
 
 app.get("/ui/listings", async (req: any, reply) => {
-  await cleanupStaleListings();
   const page = parsePositiveInt(req.query?.page, 1);
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const filters = parseListingsFilterState(req.query ?? {});
-  const listingWhere = buildListingsWhere(filters, cutoff);
+  const listingWhere = buildListingsWhere(filters);
   const totalItems = await prisma.listing.count({ where: listingWhere });
   const pagination = buildPaginationMeta(totalItems, page, ADMIN_PAGE_SIZE);
   const sortState = parseAdminSortState(
@@ -1628,9 +1626,23 @@ app.get("/ui/listings", async (req: any, reply) => {
   const categoryLabelByValue = Object.fromEntries(
     categoryOptions.map((option) => [option.value, option.label]),
   );
+  const topAuthorRows = await prisma.$queryRaw<Array<{ sellerName: string; count: bigint }>>`
+    SELECT "sellerName" AS "sellerName", COUNT(*)::bigint AS "count"
+    FROM "Listing"
+    WHERE "sellerType" = 'company'
+      AND COALESCE(BTRIM("sellerName"), '') <> ''
+    GROUP BY "sellerName"
+    ORDER BY COUNT(*) DESC, "sellerName" ASC
+    LIMIT 10
+  `;
+  const topAuthors = topAuthorRows.map((row) => ({
+    sellerName: row.sellerName,
+    count: Number(row.count),
+  }));
 
   reply.type("text/html; charset=utf-8").send(renderListingsPage({
     listings,
+    topAuthors,
     categoryLabelByValue,
     latestEventByListingId,
     pagination,
@@ -1641,7 +1653,6 @@ app.get("/ui/listings", async (req: any, reply) => {
 });
 
 app.get("/ui/telegram-deliveries", async (req: any, reply) => {
-  await cleanupStaleListings();
   const page = parsePositiveInt(req.query?.page, 1);
   const filters = parseTelegramDeliveryFilters(req.query ?? {});
   const where = {

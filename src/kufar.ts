@@ -729,15 +729,6 @@ export async function saveKufarAds(options?: Parameters<typeof fetchKufarMap>[0]
     }
   }
 
-  const staleCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  await prisma.listing.deleteMany({
-    where: {
-      isActive: false,
-      source: { in: [KUFAR_SOURCE, "kufar"] },
-      lastSeenAt: { lt: staleCutoff },
-    },
-  });
-
   let notificationsSent = 0;
 
   for (const user of users) {

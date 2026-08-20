@@ -19,6 +19,7 @@ Use this file together with:
 - Timestamps are stored as `TIMESTAMPTZ`.
 - `Listing` keeps the current normalized state.
 - `AdEvent` keeps immutable history rows.
+- Listings are retained even when they become inactive; the service no longer performs automatic cleanup of old rows.
 - `User` stores billing state for fast admin filtering.
 - `UserSubscription` stores billing history.
 
@@ -122,6 +123,7 @@ Notes:
 - `sourcePrice` stores the raw source amount used for change detection.
 - `sellerName` is normalized from Kufar account parameters.
 - `sellerPhone` is stored as-is when present.
+- Inactive listings stay in the table and can be filtered in the admin UI.
 
 ### AdEvent
 
@@ -180,4 +182,3 @@ Notes:
 - `Subscription` belongs to user search filters.
 - `User` and `UserSubscription` belong to billing.
 - `TelegramDeliveryLog` belongs to delivery observability.
-
