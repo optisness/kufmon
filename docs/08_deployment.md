@@ -13,6 +13,7 @@ This is the operational runbook for deploying KufMon.
 - Render deployment;
 - environment-based configuration;
 - cron started inside the app after the server is listening.
+- Kufar sync runs every 15 minutes instead of every 5 minutes to reduce outbound traffic.
 
 ## Important variables
 
@@ -57,4 +58,3 @@ This is the operational runbook for deploying KufMon.
 - Telegram sends work;
 - cron starts;
 - admin login works.
-

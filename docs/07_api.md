@@ -40,6 +40,7 @@ Current implementation notes:
 - Telegram delivery attempts are stored in `TelegramDeliveryLog` and the admin UI exposes them on `/ui/telegram-deliveries` with timestamp, user label, subscription name, chat ID, purpose, result, status code, and error text. The page supports filtering by user and by delivery result.
 - `/health` is public so Render can probe it without a session cookie. In the browser it renders a status page with navigation; JSON is still available via `?format=json` or an `application/json` accept header.
 - `/metrics` and `/kufar` remain protected debug endpoints and are not shown in the main navigation. `metrics` returns uptime plus a few counters; `kufar` returns the raw Kufar search payload.
+- Background Kufar sync runs every 15 minutes, not every 5 minutes, to keep outbound traffic lower on the Hobby workspace.
 - Old inactive listings are retained in the database; the admin UI can still filter them by status.
 - The dedicated phone refresh operator endpoint and the health-page refresh button were removed.
 - Admin login attempts are rate-limited: three wrong passwords lock the form for five minutes and trigger a Telegram notification to the admin.

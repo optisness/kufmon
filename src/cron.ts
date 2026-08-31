@@ -7,9 +7,9 @@ import { sendBillingExpiryReminders } from "./billingReminders.js";
 const logger = createLogger({ module: "cron" });
 
 export function startCron() {
-  logger.info({ syncInterval: "5m", remindersAt: "10:00 Europe/Minsk" }, "Cron started");
+  logger.info({ syncInterval: "15m", remindersAt: "10:00 Europe/Minsk" }, "Cron started");
 
-  cron.schedule("*/5 * * * *", async () => {
+  cron.schedule("*/15 * * * *", async () => {
     logger.info("Running sync...");
     incMetric("syncRuns");
 
